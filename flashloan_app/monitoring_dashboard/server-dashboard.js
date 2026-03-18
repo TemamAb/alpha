@@ -146,7 +146,6 @@ app.post('/api/wallet/mode', (req, res) => {
 });
 
 // Production Relay API - uses Pimlico for GASLESS transactions
-const axios = require('axios');
 
 // Pimlico configuration from .env
 const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY || 'pim_UbfKR9ocMe5ibNUCGgB8fE';
