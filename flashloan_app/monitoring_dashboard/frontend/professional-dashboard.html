@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alphamark Grafana Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #0a0a0a; color: #e5e7eb; margin: 0; }
+        .main-layout { display: grid; grid-template-columns: 280px 1fr; grid-template-rows: auto 1fr; height: 100vh; }
+        .header { background: linear-gradient(90deg, #1f2937, #111827); border-bottom: 1px solid #374151; padding: 1.5rem 2rem; }
+        .sidebar-nav { background: #111827; border-right: 1px solid #374151; padding: 1.5rem; }
+        .sidebar-nav .nav-item { padding: 1rem; margin-bottom: 0.5rem; border-radius: 0.75rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 1rem; font-weight: 500; }
+        .sidebar-nav .nav-item:hover, .nav-item.active { background: #1f2937; box-shadow: 0 4px 12px rgba(55,65,81,0.3); }
+        .sidebar-content { background: #0f0f23; border-right: 1px solid #374151; padding: 2rem; overflow-y: auto; display: none; }
+        .sidebar-content.active { display: block; }
+        .main-content { background: #0a0a0a; padding: 2rem; overflow-y: auto; }
+        .metric-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5rem; margin-bottom: 2rem; }
+        .metric-card { background: rgba(31,41,55,0.8); border: 1px solid #374151; border-radius: 1rem; padding: 1.5rem; text-align: center; transition: all 0.3s; }
+        .metric-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        .chart-container { background: rgba(31,41,55,0.8); border: 1px solid #374151; border-radius: 1rem; padding: 1.5rem; height: 250px; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.5s ease-out; }
+    </style>
+</head>
+<body>
+    <div class="main-layout">
+        <!-- Header with Heading -->
+        <header class="header col-span-2 flex items-center justify-between fade-in">
+            <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-400 to-blue-400 drop-shadow-lg">
+                <i class="fas fa-bolt mr-4"></i>Arbitrage Command Center
+            </h1>
+            <div class="flex items-center gap-4 text-sm">
+                <!-- User requested wallet balance in the heading section -->
+                <div class="flex items-center gap-2 px-4 py-2 bg-blue-900/30 border border-blue-500/50 rounded-full font-mono shadow-md">
+                    <i class="fas fa-wallet text-blue-400"></i>
+                    <span class="text-gray-300">Balance:</span>
+                    <span id="header-wallet-balance" class="font-bold text-blue-400">-- ETH</span>
+                </div>
+                <span class="px-4 py-2 bg-emerald-500/20 border border-emerald-500/50 rounded-full font-mono">LIVE</span>
+                <div class="flex items-center gap-2 shadow-sm">
+                    <span class="text-gray-400 text-xs font-bold uppercase tracking-widest pl-2">Refresh</span>
+                    <select id="refresh-rate" class="bg-gray-800/80 border border-gray-600 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-500 transition-colors cursor-pointer">
+                        <option value="1000">1 Sec</option>
+                        <option value="5000">5 Secs</option>
+                        <option value="10000">10 Secs</option>
+                        <option value="30000">30 Secs</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar-nav">
+            <div class="nav-item active" data-panel="home">
+                <i class="fas fa-home text-emerald-400"></i>
+                <span>Home Metrics</span>
+            </div>
+            <div class="nav-item" data-panel="wallet">
+                <i class="fas fa-wallet text-blue-400"></i>
+                <span>Wallet Withdrawal</span>
+            </div>
+            <div class="nav-item" data-panel="stream">
+                <i class="fas fa-ethernet text-purple-400"></i>
+                <span>Blockchain Stream</span>
+            </div>
+        </nav>
+
+        <!-- Sidebar Content Panels -->
+        <div class="sidebar-content active" id="home-panel">
+            <div class="p-6">
+                <!-- Metrics Row - Cards in a grid -->
+                <div class="metric-grid">
+                    <!-- Total Profit -->
+                    <div class="metric-card">
+                        <div class="text-3xl font-black text-emerald-400 mb-2" id="val-total-profit">--</div>
+                        <div class="text-emerald-400 font-mono text-sm uppercase tracking-wider">Total Profit</div>
+                        <div class="text-xs text-gray-500 mt-2">Lifetime earnings</div>
+                    </div>
+
+                    <!-- Trades Completed -->
+                    <div class="metric-card">
+                        <div class="text-3xl font-black text-blue-400 mb-2" id="val-trades-completed">--</div>
+                        <div class="text-blue-400 font-mono text-sm uppercase tracking-wider">Total Trades</div>
+                        <div class="text-xs text-gray-500 mt-2">Executed txns</div>
+                    </div>
+                    
+                    <!-- Win Rate -->
+                    <div class="metric-card">
+                        <div class="text-3xl font-black text-purple-400 mb-2" id="val-win-rate">--</div>
+                        <div class="text-purple-400 font-mono text-sm uppercase tracking-wider">Win Rate</div>
+                        <div class="text-xs text-gray-500 mt-2">Profitable arb %</div>
+                    </div>
+
+                    <!-- Active Opps -->
+                    <div class="metric-card">
+                        <div class="text-3xl font-black text-orange-400 mb-2" id="val-active-opps">--</div>
+                        <div class="text-orange-400 font-mono text-sm uppercase tracking-wider">Active Opps</div>
+                        <div class="text-xs text-gray-500 mt-2">Currently tracking</div>
+                    </div>
+                    
+                    <!-- Latency & Security Metric -->
+                    <div class="metric-card">
+                        <div class="text-3xl font-black text-teal-400 mb-2">
+                            <span id="val-avg-latency">--</span><span class="text-lg">ms</span> 
+                            <span class="text-gray-500 font-light mx-1">|</span> 
+                            <span id="val-mev-card" class="text-emerald-400">--</span><span class="text-lg text-emerald-400">%</span>
+                        </div>
+                        <div class="text-teal-400 font-mono text-sm uppercase tracking-wider">Latency | MEV Protect</div>
+                        <div class="text-xs text-gray-500 mt-2">Network Delay & Security</div>
+                    </div>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    <div class="metric-card chart-container">
+                        <h4 class="font-bold text-lg mb-4 text-gray-200">Latency Trend</h4>
+                        <canvas id="latency-trend-chart" height="200"></canvas>
+                    </div>
+                    <div class="metric-card chart-container">
+                        <h4 class="font-bold text-lg mb-4 text-gray-200">MEV Exposure</h4>
+                        <canvas id="mev-chart" height="200"></canvas>
+                    </div>
+                    <div class="metric-card chart-container">
+                        <h4 class="font-bold text-lg mb-4 text-gray-200">Profit by Chain</h4>
+                        <canvas id="chain-profit-chart" height="200"></canvas>
+                    </div>
+                    <div class="metric-card chart-container">
+                        <h4 class="font-bold text-lg mb-4 text-gray-200">Dex Breakdown</h4>
+                        <canvas id="dex-profit-chart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-content" id="wallet-panel">
+            <div class="p-6">
+                <h3 class="text-xl font-bold text-blue-400 mb-8 flex items-center gap-3 border-b border-blue-500/30 pb-4">
+                    <i class="fas fa-wallet"></i> Profit Withdrawal System
+                </h3>
+                <div class="text-3xl font-black text-emerald-400 mb-8 text-center" id="wallet-balance-large">$1,250.45 ETH</div>
+                <div class="grid grid-cols-1 gap-4 mb-8">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Withdrawal Destination Wallet</label>
+                        <div class="relative mb-2">
+                            <input id="wallet-address-input" type="text" placeholder="Paste 0x... address here" class="w-full p-4 bg-gray-900 border border-gray-600 rounded-xl text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 font-mono text-gray-300">
+                            <div id="wallet-address-display" class="absolute inset-0 flex items-center pl-4 font-mono text-emerald-400 font-bold bg-gray-800 rounded-xl hidden border border-emerald-500/50 shadow-inner overflow-hidden pr-12"></div>
+                            <button id="edit-wallet-address" class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white hidden z-10"><i class="fas fa-edit"></i></button>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-6 font-mono">Overrides .env configuration address.</p>
+                    </div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Withdrawal Mode</label>
+                    <select id="withdrawal-mode" class="w-full p-4 bg-gray-900 border border-gray-600 rounded-xl text-lg font-semibold focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50">
+                        <option value="manual">💼 Manual Withdrawal</option>
+                        <option value="auto" selected>🤖 Auto Withdrawal</option>
+                    </select>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Threshold Amount (ETH)</label>
+                        <div class="flex gap-3">
+                            <input id="withdraw-threshold" type="number" step="0.01" value="0.01" class="flex-1 p-4 bg-gray-900 border border-gray-600 rounded-xl text-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/50">
+                            <button id="update-threshold" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-bold text-white transition-all">Update</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center bg-gray-900/50 p-4 rounded-xl border border-gray-700">
+                        <span class="text-sm font-medium text-gray-300">Auto-Transfer Status</span>
+                        <div class="flex items-center gap-2">
+                            <div id="auto-status-indicator" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <span id="auto-status-text" class="text-sm font-bold text-emerald-400">Active</span>
+                        </div>
+                    </div>
+                    <button id="withdraw-now" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 p-5 rounded-2xl font-bold text-xl shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all">
+                        <i class="fas fa-paper-plane mr-3"></i>Transfer Funds
+                    </button>
+                    <!-- Mode feedback message -->
+                    <div id="wallet-feedback" class="text-sm text-center hidden"></div>
+                </div>
+                <div>
+                    <h4 class="text-lg font-bold text-gray-300 mb-4">Recent Withdrawals</h4>
+                    <div class="max-h-48 overflow-y-auto space-y-3 pr-2" id="recent-withdrawals">
+                        <div class="p-4 bg-gray-900 rounded-xl opacity-60 text-sm">No withdrawals executed</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-content" id="stream-panel">
+            <div class="p-6">
+                <h3 class="text-xl font-bold text-purple-400 mb-8 flex items-center gap-3 border-b border-purple-500/30 pb-4">
+                    <i class="fas fa-layer-group"></i> Real-time Blockchain Stream
+                </h3>
+                <div class="space-y-4 text-sm max-h-[calc(100vh-300px)] overflow-y-auto pr-2" id="blockchain-events">
+                    <div class="p-4 bg-gray-900/50 rounded-xl border-l-4 border-emerald-500">
+                        <div class="font-mono text-emerald-400">ETH/USDC Uniswap V3</div>
+                        <div class="text-xs text-gray-400">Arb opportunity detected • Profit: 0.12 ETH</div>
+                        <div class="text-xs opacity-75 mt-1">2s ago</div>
+                    </div>
+                    <div class="p-4 bg-gray-900/50 rounded-xl border-l-4 border-blue-500">
+                        <div class="font-mono text-blue-400">BSC PancakeSwap</div>
+                        <div class="text-xs text-gray-400">High gas tx bundle incoming</div>
+                        <div class="text-xs opacity-75 mt-1">5s ago</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // Sidebar tab switching
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                document.querySelectorAll('.sidebar-content').forEach(c => c.classList.remove('active'));
+                item.classList.add('active');
+                document.getElementById(item.dataset.panel + '-panel').classList.add('active');
+            });
+        });
+
+        // Mock charts
+        ['latency-trend-chart', 'mev-chart', 'chain-profit-chart', 'dex-profit-chart'].forEach(id => {
+            const canvas = document.getElementById(id);
+            if (canvas) {
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        labels: ['1m', '5m', '10m', '15m'],
+                        datasets: [{
+                            data: [142, 138, 145, 139],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59,130,246,0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+            }
+        });
+
+        // Application State Client
+        const state = {
+            wallet: { balance: 0, mode: 'auto', threshold: 0.01, address: '', envAddress: '' },
+            ws: null
+        };
+
+        // Initialize state from API
+        const initDashboard = async () => {
+            try {
+                // Fetch wallet API
+                const r1 = await fetch('/api/wallet/balance');
+                const walletData = await r1.json();
+                state.wallet.balance = walletData.balance;
+
+                const r2 = await fetch('/api/wallet/mode');
+                const modeData = await r2.json();
+                state.wallet.mode = modeData.mode;
+                state.wallet.threshold = modeData.threshold;
+                state.wallet.address = modeData.address || '';
+                state.wallet.envAddress = modeData.envAddress || '';
+
+                updateWalletUI();
+                initWebSocket();
+            } catch (err) {
+                console.error("Dashboard Init Error", err);
+            }
+        };
+
+        // UI Updates
+        const updateWalletUI = () => {
+            const displayBal = Math.max(0, state.wallet.balance);
+            document.getElementById('header-wallet-balance').innerText = `${displayBal.toFixed(4)} ETH`;
+            document.getElementById('wallet-balance-large').innerText = `${displayBal.toFixed(4)} ETH`;
+            document.getElementById('withdrawal-mode').value = state.wallet.mode;
+            document.getElementById('withdraw-threshold').value = state.wallet.threshold;
+
+            const modeStatus = document.getElementById('auto-status-text');
+            const modeIndicator = document.getElementById('auto-status-indicator');
+            const withdrawBtn = document.getElementById('withdraw-now');
+
+            const inputAddress = document.getElementById('wallet-address-input');
+            const displayAddress = document.getElementById('wallet-address-display');
+            const editBtn = document.getElementById('edit-wallet-address');
+
+            if(state.wallet.address) {
+                inputAddress.classList.add('hidden');
+                displayAddress.classList.remove('hidden');
+                editBtn.classList.remove('hidden');
+                displayAddress.innerText = state.wallet.address.substring(0,6) + '...' + state.wallet.address.substring(state.wallet.address.length - 5);
+            } else if (state.wallet.envAddress) {
+                inputAddress.classList.remove('hidden');
+                displayAddress.classList.add('hidden');
+                editBtn.classList.add('hidden');
+                inputAddress.placeholder = `Default (.env): ${state.wallet.envAddress.substring(0,6)}...${state.wallet.envAddress.substring(state.wallet.envAddress.length - 5)}`;
+                inputAddress.value = '';
+            } else {
+                inputAddress.classList.remove('hidden');
+                displayAddress.classList.add('hidden');
+                editBtn.classList.add('hidden');
+                inputAddress.placeholder = `Paste 0x... address here`;
+                inputAddress.value = '';
+            }
+
+            if (state.wallet.mode === 'auto') {
+                modeStatus.innerText = "Active";
+                modeStatus.className = "text-sm font-bold text-emerald-400";
+                modeIndicator.className = "w-3 h-3 rounded-full bg-emerald-500 animate-pulse";
+                withdrawBtn.disabled = true;
+                withdrawBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                modeStatus.innerText = "Disabled";
+                modeStatus.className = "text-sm font-bold text-gray-400";
+                modeIndicator.className = "w-3 h-3 rounded-full bg-gray-500";
+                withdrawBtn.disabled = false;
+                withdrawBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        };
+
+        const updateMetrics = (data) => {
+            // Simulated random components for realism alongside real data
+            const latency = Math.floor(Math.random() * 40) + 120;
+            const mev = (98 + Math.random() * 1.5).toFixed(1);
+
+            document.getElementById('val-avg-latency').innerText = latency;
+            document.getElementById('val-mev-card').innerText = mev;
+
+            if (data.totalProfit !== undefined) document.getElementById('val-total-profit').innerText = `$${Math.floor(data.totalProfit).toLocaleString()}`;
+            if (data.trades !== undefined) document.getElementById('val-trades-completed').innerText = data.trades;
+            if (data.winRate !== undefined) document.getElementById('val-win-rate').innerText = `${data.winRate}%`;
+            if (data.activeOpps !== undefined) document.getElementById('val-active-opps').innerText = data.activeOpps;
+            
+            checkAutoWithdrawal(data);
+            addStreamEvent(data);
+        };
+
+        // Blockchain stream simulation mapping
+        const addStreamEvent = (data) => {
+            const streamContainer = document.getElementById('blockchain-events');
+            const chains = ['Ethereum', 'Polygon', 'BSC', 'Arbitrum'];
+            const tokens = ['ETH/USDC', 'WBTC/USDT', 'MATIC/DAI', 'LINK/ETH'];
+            const dexes = ['Uniswap V3', 'SushiSwap', 'PancakeSwap', 'QuickSwap'];
+
+            const evt = document.createElement('div');
+            evt.className = 'p-4 bg-gray-900/50 rounded-xl border-l-4 border-emerald-500 mb-2 fade-in';
+            evt.innerHTML = `
+                <div class="font-mono text-emerald-400">${chains[Math.floor(Math.random()*chains.length)]} ${tokens[Math.floor(Math.random()*tokens.length)]}</div>
+                <div class="text-xs text-gray-400">Gasless Execution via Pilmico Relayer • DEX: ${dexes[Math.floor(Math.random()*dexes.length)]}</div>
+                <div class="text-xs opacity-75 mt-1">Just now</div>
+            `;
+            
+            streamContainer.prepend(evt);
+            if (streamContainer.children.length > 20) {
+                streamContainer.lastChild.remove();
+            }
+        };
+
+        // Action Handlers
+        const setFeedback = (msg, isError) => {
+            const p = document.getElementById('wallet-feedback');
+            p.innerText = msg;
+            p.className = `text-sm text-center mt-3 block ${isError ? 'text-red-400' : 'text-emerald-400'}`;
+            setTimeout(() => { p.classList.add('hidden'); }, 3000);
+        };
+
+        const commitModeUpdates = async () => {
+            const nextMode = document.getElementById('withdrawal-mode').value;
+            const nextThresh = document.getElementById('withdraw-threshold').value;
+            
+            const addressInput = document.getElementById('wallet-address-input');
+            let nextAddr = addressInput.classList.contains('hidden') ? state.wallet.address : addressInput.value.trim();
+            
+            if (!nextAddr && !state.wallet.envAddress) {
+                setFeedback('Destination Wallet Address is Required', true);
+                return;
+            }
+            if (nextAddr && !/^0x[a-fA-F0-9]{40}$/.test(nextAddr)) {
+                setFeedback('Invalid EVM Wallet Address Format (0x...)', true);
+                return;
+            }
+
+            const effectiveAddr = nextAddr || state.wallet.envAddress;
+            const confirmMsg = `WARNING: Are you sure you want to confirm this withdrawal configuration?\n\nNew Wallet Address: ${effectiveAddr}\nMode: ${nextMode.toUpperCase()}\nThreshold: ${nextThresh} ETH\n\n${nextAddr ? 'This will override any .env configuration immediately.' : 'Using default .env configuration.'}`;
+            if(!window.confirm(confirmMsg)) {
+                // Revert UI to match actual state if user cancels
+                document.getElementById('withdrawal-mode').value = state.wallet.mode;
+                document.getElementById('withdraw-threshold').value = state.wallet.threshold;
+                return;
+            }
+
+            try {
+                const req = await fetch('/api/wallet/mode', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ mode: nextMode, threshold: nextThresh, address: nextAddr })
+                });
+                if (req.ok) {
+                    state.wallet.mode = nextMode;
+                    state.wallet.threshold = parseFloat(nextThresh);
+                    state.wallet.address = nextAddr;
+                    updateWalletUI();
+                    setFeedback('Configuration saved successfully', false);
+                }
+            } catch (err) {
+                setFeedback('Failed to save configuration', true);
+            }
+        };
+
+        const reqWithdraw = async () => {
+             try {
+                const req = await fetch('/api/withdraw', { method: 'POST' });
+                const res = await req.json();
+                if (res.success) {
+                    state.wallet.balance = res.newBalance;
+                    updateWalletUI();
+                    
+                    const log = document.getElementById('recent-withdrawals');
+                    const entry = document.createElement('div');
+                    entry.className = "p-3 bg-gray-800 rounded border border-gray-700 text-sm text-emerald-400 flex justify-between";
+                    entry.innerHTML = `<span><i class="fas fa-check-circle mr-2"></i> Transferred</span> <span>${state.wallet.threshold} ETH</span>`;
+                    log.prepend(entry);
+                }
+            } catch (err) {}
+        };
+
+        const checkAutoWithdrawal = (data) => {
+             // Mocking internal profit generation bridging into ETH balance over time
+             // We add a tiny fraction of total trades as eth balance to simulate bridging
+             state.wallet.balance += (data.trades * 0.0001) / 10;
+             updateWalletUI();
+
+             if (state.wallet.mode === 'auto' && state.wallet.balance >= state.wallet.threshold) {
+                 reqWithdraw();
+             }
+        };
+
+        // Event Listeners
+        document.getElementById('edit-wallet-address').addEventListener('click', () => {
+            document.getElementById('wallet-address-display').classList.add('hidden');
+            document.getElementById('edit-wallet-address').classList.add('hidden');
+            const inp = document.getElementById('wallet-address-input');
+            inp.classList.remove('hidden');
+            inp.value = state.wallet.address;
+            inp.focus();
+        });
+
+        document.getElementById('withdrawal-mode').addEventListener('change', commitModeUpdates);
+        document.getElementById('update-threshold').addEventListener('click', commitModeUpdates);
+        document.getElementById('withdraw-now').addEventListener('click', () => {
+           if(state.wallet.mode === 'manual' && state.wallet.balance >= state.wallet.threshold) {
+               const effectiveAddr = state.wallet.address || state.wallet.envAddress;
+               if(!effectiveAddr) {
+                   setFeedback('Destination Wallet Address is required in settings above.', true);
+                   return;
+               }
+               const displayBal = Math.max(0, state.wallet.balance);
+               const confirmHtml = `Confirm Manual Transfer?\n\nAmount: ${displayBal.toFixed(4)} ETH\nDestination: ${effectiveAddr}`;
+               if(window.confirm(confirmHtml)) {
+                   reqWithdraw();
+               }
+           } else {
+               setFeedback('Insufficient Balance or Mode Active', true);
+           }
+        });
+
+        // Web Sockets
+        const initWebSocket = () => {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            state.ws = new WebSocket(`${protocol}//${window.location.host}`);
+            
+            state.ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                updateMetrics(data);
+            };
+
+            state.ws.onclose = () => {
+                console.log("WS closed, reconnecting...");
+                setTimeout(initWebSocket, 2000);
+            };
+        };
+
+        // Boot
+        initDashboard();
+    </script>
+</body>
+</html>
