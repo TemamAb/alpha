@@ -3,28 +3,13 @@
   "builds": [
     {
       "src": "flashloan_app/monitoring_dashboard/server-dashboard.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "flashloan_app/monitoring_dashboard/frontend/**",
-      "use": "@vercel/static"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["flashloan_app/monitoring_dashboard/frontend/**"]
+      }
     }
   ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "flashloan_app/monitoring_dashboard/server-dashboard.js"
-    },
-    {
-      "src": "/dashboard/(.*)",
-      "dest": "flashloan_app/monitoring_dashboard/frontend/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "flashloan_app/monitoring_dashboard/frontend/index.html"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+    { "src": "/(.*)", "dest": "flashloan_app/monitoring_dashboard/server-dashboard.js" }
+  ]
 }

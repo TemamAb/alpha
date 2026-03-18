@@ -8,6 +8,9 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'frontend')));
 
+// Declare wss globally so broadcastUpdate can access it
+let wss = null;
+
 // Serve professional-dashboard.html for root path
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'professional-dashboard.html'));
@@ -94,7 +97,7 @@ const updateStatsFromBot = (executionResult) => {
 
 // Broadcast update to all connected WebSocket clients
 const broadcastUpdate = () => {
-  if (typeof wss !== 'undefined') {
+  if (wss && wss.clients) {
     const data = JSON.stringify({
       ...botStats,
       wallet: wallet
@@ -219,39 +222,44 @@ app.get('/api/health', (req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  console.log('===========================================');
-  console.log('  Alphamark Production Dashboard');
-  console.log(`  Server running on http://localhost:${PORT}`);
-  console.log(`  Mode: PRODUCTION`);
-  console.log('===========================================');
-});
-
-// WebSocket server for real-time updates
-const wss = new WebSocket.Server({server});
-
-wss.on('connection', (ws) => {
-  console.log('Client connected to WebSocket');
-  
-  // Send initial data
-  ws.send(JSON.stringify({
-    ...botStats,
-    wallet: wallet
-  }));
-  
-  ws.on('close', () => {
-    console.log('Client disconnected');
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  const server = app.listen(PORT, () => {
+    console.log('===========================================');
+    console.log('  Alphamark Production Dashboard');
+    console.log(`  Server running on http://localhost:${PORT}`);
+    console.log(`  Mode: PRODUCTION`);
+    console.log('===========================================');
   });
-});
 
-// Periodic stats broadcast (simulate live data for demo)
-setInterval(() => {
-  // Simulate finding opportunities
-  if (Math.random() > 0.7) {
-    botStats.activeOpps = Math.floor(Math.random() * 10);
-    broadcastUpdate();
-  }
-}, 5000);
+  // WebSocket server for real-time updates (Local Only)
+  wss = new WebSocket.Server({server});
 
-console.log('Dashboard server initialized in PRODUCTION mode');
+  wss.on('connection', (ws) => {
+    console.log('Client connected to WebSocket');
+    
+    // Send initial data
+    ws.send(JSON.stringify({
+      ...botStats,
+      wallet: wallet
+    }));
+    
+    ws.on('close', () => {
+      console.log('Client disconnected');
+    });
+  });
+
+  // Periodic stats broadcast (simulate live data for demo)
+  setInterval(() => {
+    // Simulate finding opportunities
+    if (Math.random() > 0.7) {
+      botStats.activeOpps = Math.floor(Math.random() * 10);
+      broadcastUpdate();
+    }
+  }, 5000);
+
+  console.log('Dashboard server initialized in PRODUCTION mode');
+}
+
+// Export for Vercel
+module.exports = app;
