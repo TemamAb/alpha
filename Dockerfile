@@ -1,17 +1,39 @@
-# Stage 1: Build the React frontend
-FROM node:18-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
-COPY . .
-RUN npm run build
+# Use Node.js 18 (Debian-based) as the base image
+FROM node:18-slim
 
-# Stage 2: Create the production image
-FROM node:18-alpine
+# Install Python 3, pip, and build tools
+RUN apt-get update && \
+    apt-get install -y python3 python3-pip python3-venv git build-essential && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
-COPY backend/package.json backend/package-lock.json* ./
+
+# Copy dependency definitions first (layer caching)
+COPY package.json requirements.txt ./
+
+# Install Node.js dependencies
 RUN npm install --production
-COPY backend/. .
-COPY --from=build /app/dist ./dist
-EXPOSE 8080
-CMD [ "node", "server.js" ]
+
+# Install Python dependencies
+# --break-system-packages is safe here as we are in an isolated container
+RUN pip3 install -r requirements.txt --break-system-packages
+
+# Copy the rest of the application code
+COPY . .
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV DASHBOARD_URL=http://localhost:3000
+ENV PYTHONUNBUFFERED=1
+
+# Expose the web port
+EXPOSE 3000
+
+# Start both processes via the start script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]
