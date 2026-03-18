@@ -1,0 +1,8 @@
+{
+  "name": "Nexus Flash Loan Orchestrator",
+  "description": "Enterprise-grade flash loan management and liquidity settlement engine powered by Gemini AI.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

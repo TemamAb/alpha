@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: User API Service
+  version: 1.0.0
+  description: User API for Alpha-Orion
+
+servers:
+  - url: http://localhost:8080
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                  version:
+                    type: string
+  /analytics/total-pnl:
+    get:
+      summary: Get total PNL
+      responses:
+        '200':
+          description: Total PNL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalPnl:
+                    type: number
+  /mode/current:
+    get:
+      summary: Get current mode
+      responses:
+        '200':
+          description: Current mode
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: string
+                  totalPnl:
+                    type: number
+  # Add more paths as needed

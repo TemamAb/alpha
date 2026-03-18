@@ -1,0 +1,207 @@
+openapi: 3.0.0
+info:
+  title: Alpha-Orion Control API
+  description: API endpoints for the Alpha-Orion Dashboard Left Sidebar controls, enabling real-time management of trading parameters and strategies.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local Development Server
+  - url: https://api.alpha-orion.com/v1
+    description: Production Server
+paths:
+  /controls/velocity:
+    post:
+      summary: Set Capital Velocity
+      description: Adjusts the capital velocity percentage, controlling how aggressively capital is deployed into opportunities.
+      operationId: setCapitalVelocity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: The velocity percentage (0-100).
+                  example: 80
+              required:
+                - value
+      responses:
+        '200':
+          description: Velocity updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  velocity:
+                    type: integer
+                    example: 80
+
+  /controls/reinvest:
+    post:
+      summary: Set Reinvestment Rate
+      description: Adjusts the percentage of realized profits that are automatically reinvested into the trading pool versus sent to the treasury.
+      operationId: setReinvestmentRate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                value:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                  description: The reinvestment rate percentage (0-100).
+                  example: 50
+              required:
+                - value
+      responses:
+        '200':
+          description: Reinvestment rate updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  rate:
+                    type: integer
+                    example: 50
+
+  /strategies/{strategyId}/toggle:
+    post:
+      summary: Toggle Strategy State
+      description: Enable or disable a specific trading strategy engine (e.g., Spot Arbitrage, Gamma Scalping).
+      operationId: toggleStrategy
+      parameters:
+        - in: path
+          name: strategyId
+          schema:
+            type: string
+            enum: [spot, gamma, perp, options]
+          required: true
+          description: The unique identifier of the strategy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                active:
+                  type: boolean
+                  description: The desired active state of the strategy.
+              required:
+                - active
+      responses:
+        '200':
+          description: Strategy state updated successfully.
+
+  /system/emergency-stop:
+    post:
+      summary: Emergency Stop
+      description: ⚠️ CRITICAL - Immediately halts all trading activities, cancels pending transactions, and puts the system into a safe mode.
+      operationId: emergencyStop
+      responses:
+        '200':
+          description: Emergency stop triggered. System is halting.
+
+  /matrix/configuration:
+    post:
+      summary: Persist Strategy Matrix Configuration
+      description: Saves the complete configuration for all strategy, DEX, pair, provider, and blockchain matrices.
+      operationId: saveMatrixConfiguration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MatrixConfiguration'
+      responses:
+        '200':
+          description: Configuration saved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Matrix configuration persisted.
+
+components:
+  schemas:
+    MatrixConfiguration:
+      type: object
+      properties:
+        strategies:
+          type: array
+          items:
+            $ref: '#/components/schemas/Strategy'
+        dexs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dex'
+        pairs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pair'
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/FlashLoanProvider'
+        blockchains:
+          type: array
+          items:
+            $ref: '#/components/schemas/Blockchain'
+    Strategy:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        pattern: { type: string }
+        profit: { type: number }
+        active: { type: boolean }
+    Dex:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        pattern: { type: string }
+        profit: { type: number }
+        active: { type: boolean }
+    Pair:
+      type: object
+      properties:
+        id: { type: integer }
+        pair: { type: string }
+        profitPercent: { type: number }
+        active: { type: boolean }
+    FlashLoanProvider:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        profitPercent: { type: number }
+        active: { type: boolean }
+    Blockchain:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        profitPercent: { type: number }
+        active: { type: boolean }

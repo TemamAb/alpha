@@ -1,0 +1,42 @@
+Alpha-Orion Arbitrage Dashboard System
+1.	Heading 
+a.	Title: Left side:  Alpha-Orion Arbitrage Engine 
+b.	Reresh Data ( interval from 1 sec to 30 sec ..in drop down menu on right side 
+c.	Wallet Balance ( displays total wallet balance in the wallet management system )
+d.	Add Toggle : ETH/USD ( converts using worl-class converter in real time ) 
+2.	Sidebars : ( lefit side ; first column ) 
+a.	Alpha-copilot ( Gemini intelligence in institutional arbitrage flash loan app; the alpha-copilot is aware of the context of alpha-orion in build-deploy-monitor and optimize life cycle model.
+i.	The alpha-copilot is aware of the benchmarking system of alpha-orion
+ii.	The alpha orion system inegerates five arbitrage flash loan apps, 
+iii.	The benchmark system selectes the top ranking metric from the five benchmarking apps ad the optimization engine continually works aimed at matching to or even going above the benchmarks
+b.	Monitor ( sidebar) 
+i.	Monitors the following metrics 
+1.	Profit/trade
+2.	Trades/hour
+3.	Profit/trade
+4.	Latency
+5.	Capital velocity
+c.	Strategies 
+1.	Strageies panel 
+a.	Displays share of each strategies contribution to alpha-orion/day  in %; displays a horizontal bar chart …..in color code and strategy name ….ten of the alpha-orion arbitrage strategies in the fist column… 
+b.	Add top ten pairs ; and profit share contribution ..in horizontal bar chart ; use clor codes
+c.	Add chains metric card
+d.	Add number of dexes 
+e.	Add flash loan providers by %
+f.	
+d.	Blockchain stream …l
+1.	Lists and displays key blockchain activities as they appear on blockchain in real time 
+e.	Optimization
+1.	Displays real time optimization activities by metrics 
+f.	Setting
+1.	Wallet Management System
+a.	A wallet panel for uploading and configuring list of wallets ; validates . the columns include; account name, chin; balance, valid/invalid checking column; acending/descending up/down button ( arrow button)  ..last row ..total wallts …total balance …it will have at the each account row: edit/delete button ….
+b.	Add profit withdrawak system : auto /manual mode 
+i.	For autho mode ..add threshold amount
+ii.	For manual add amount of transfer
+
+c.	Add capital velocity slidebar ..control $ 1M to $ 500 M 
+d.	Add profit  reinvestment rate ( from 0 % to 100% ) 
+
+
+

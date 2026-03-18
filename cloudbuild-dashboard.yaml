@@ -1,0 +1,26 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/alpha-orion-dashboard:latest', '-f', 'docker/frontend.Dockerfile', '.']
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/alpha-orion-dashboard:latest']
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'alpha-orion-dashboard'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/alpha-orion-dashboard:latest'
+      - '--region'
+      - 'us-central1'
+      - '--project'
+      - '$PROJECT_ID'
+      - '--allow-unauthenticated'
+
+images:
+  - 'gcr.io/$PROJECT_ID/alpha-orion-dashboard:latest'

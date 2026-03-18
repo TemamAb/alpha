@@ -1,0 +1,143 @@
+# Alpha-Orion Deployment Configuration for Render
+# Migrated from GCP Cloud Run
+# Uses OpenAI instead of Google Gemini
+
+services:
+  # Backend API Service (User API)
+  - name: alpha-orion-api
+    region: oregon
+    env: node
+    runtime: nodejs18
+    buildCommand: cd backend-services/services/user-api-service && npm install
+    startCommand: cd backend-services/services/user-api-service/src && node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: ETH_RPC_URL
+        sync: false
+      - key: POLYGON_RPC_URL
+        sync: false
+      - key: SOLANA_RPC_URL
+        sync: false
+      - key: PIMLICO_API_KEY
+        sync: false
+      - key: WALLET_ADDRESS
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /health
+
+  # Brain Orchestrator Service (AI Analysis)
+  - name: alpha-orion-brain
+    region: oregon
+    env: python
+    runtime: python311
+    buildCommand: cd backend-services/services/brain-orchestrator/src && pip install -r requirements.txt
+    startCommand: cd backend-services/services/brain-orchestrator/src && python main.py
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ETH_RPC_URL
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /health
+
+  # Frontend/Dashboard (main dashboard)
+  - name: alpha-orion-dashboard
+    region: oregon
+    env: static
+    buildCommand: cd dashboard && npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://alpha-orion-api.onrender.com
+      - key: VITE_WS_URL
+        value: wss://alpha-orion-api.onrender.com
+      - key: VITE_OPENAI_API_KEY
+        sync: false
+    autoDeploy: true
+
+  # Legacy Frontend (alpha-orion/frontend)
+  - name: alpha-orion-frontend
+    region: oregon
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://alpha-orion-api.onrender.com
+    autoDeploy: true
+
+  # Blockchain Monitor Service
+  - name: alpha-orion-monitor
+    region: oregon
+    env: python
+    runtime: python311
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: WEB3_PROVIDER_URL
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /health
+
+  # Strategy Engine Service
+  - name: alpha-orion-strategy
+    region: oregon
+    env: python
+    runtime: python311
+    buildCommand: cd backend-services/services/brain-strategy-engine && pip install -r requirements.txt
+    startCommand: cd backend-services/services/brain-strategy-engine/src && python main.py
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /health
+
+  # Risk Management Service
+  - name: alpha-orion-risk
+    region: oregon
+    env: python
+    runtime: python311
+    buildCommand: cd backend-services/services/brain-risk-management && pip install -r requirements.txt
+    startCommand: cd backend-services/services/brain-risk-management/src && python main.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: WALLET_ADDRESS
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /health

@@ -1,0 +1,27 @@
+# Production Configuration
+database:
+  url: ${DATABASE_URL}
+
+redis:
+  url: ${REDIS_URL}
+
+gcp:
+  project_id: alpha-orion
+  region: us-central1
+
+services:
+  brain_simulation:
+    port: 8080
+  user_api:
+    port: 8081
+
+logging:
+  level: INFO
+
+secrets:
+  jwt_secret: ${JWT_SECRET}
+  api_keys:
+    binance: ${BINANCE_API_KEY}
+    coinbase: ${COINBASE_API_KEY}
+
+# Secrets managed via GCP Secret Manager

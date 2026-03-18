@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-02-14T09:34:15.827224",
+  "project_id": "alpha-orion",
+  "services": {
+    "project_access": {
+      "status": "FAILED",
+      "details": "ERROR: (gcloud.projects.describe) INVALID_ARGUMENT: Request contains an invalid argument.\n"
+    },
+    "compute_engine": {
+      "status": "FAILED",
+      "instances": [],
+      "count": 0,
+      "details": "ERROR: (gcloud.compute.instances.list) Name expected [    table(\n      name,\n      zone.basename(),\n      machineType.machine_type().basename(),\n      scheduling.preemptible.yesno(yes=true, no=''),\n      networkInterfaces.internal_ip():label=INTERNAL_IP,\n      external_ip():label=EXTERNAL_IP,\n      status\n    ) *HERE* 'table(name,status,zone,machine_type)'].\n"
+    },
+    "bigtable": {
+      "status": "FAILED",
+      "instances": [],
+      "count": 0,
+      "details": "ERROR: (gcloud.bigtable.instances.list) Name expected [\n          table(\n            name.basename():sort=1,\n            displayName,\n            state\n          )\n         *HERE* 'table(name,displayName,state)'].\n"
+    },
+    "dataflow": {
+      "status": "FAILED",
+      "jobs": [],
+      "count": 0,
+      "details": "ERROR: (gcloud.dataflow.jobs.list) Name expected [\n          table(\n            id:label=JOB_ID,\n            name:label=NAME,\n            type:label=TYPE,\n            creationTime.yesno(no=\"-\"),\n            state,\n            location:label=REGION\n          )\n      *HERE* 'table(name,state,createTime)'].\n"
+    },
+    "vertex_ai": {
+      "status": "FAILED",
+      "endpoints": [],
+      "count": 0,
+      "details": "Using endpoint [https://us-central1-aiplatform.googleapis.com/]\nERROR: (gcloud.ai.endpoints.list) Name expected [\n        table(\n            name.basename():label=ENDPOINT_ID,\n            displayName,\n            deployedModels.yesno(yes=Yes).if(list_model_garden_endpoints_only):label=HAS_DEPLOYED_MODEL,\n            deployedModels[0].id.if(list_model_garden_endpoints_only):label=DEPLOYED_MODEL_ID\n        )\n     *HERE* 'table(name,displayName)'].\n"
+    },
+    "networking": {
+      "vpc": {
+        "status": "FAILED",
+        "networks": [],
+        "count": 0
+      },
+      "load_balancers": {
+        "status": "FAILED",
+        "load_balancers": [],
+        "count": 0
+      }
+    }
+  },
+  "overall_status": "CRITICAL",
+  "performance_metrics": {
+    "latency": "< 50ms (Target)",
+    "throughput": "> 1000 ops/sec (Target)",
+    "uptime": "99.9% (Target)",
+    "error_rate": "< 0.1% (Target)"
+  },
+  "security_status": {
+    "cloud_armor": {
+      "status": "FAILED",
+      "policies": [],
+      "count": 0
+    },
+    "vpc_service_controls": {
+      "status": "FAILED",
+      "policies": [],
+      "count": 0
+    }
+  },
+  "cost_analysis": {},
+  "success_rate": "0.0%"
+}

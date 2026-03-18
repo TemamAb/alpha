@@ -1,0 +1,38 @@
+steps:
+  # Build User API Service
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/user-api-service', './backend-services/services/user-api-service']
+  
+  # Build Eye Scanner
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/eye-scanner', './backend-services/services/eye-scanner']
+  
+  # Build Brain Orchestrator
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/brain-orchestrator', './backend-services/services/brain-orchestrator']
+
+  # Push images to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/user-api-service']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/eye-scanner']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/brain-orchestrator']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'user-api-service', '--image', 'gcr.io/$PROJECT_ID/user-api-service', '--region', 'us-central1', '--platform', 'managed', '--allow-unauthenticated', '--set-env-vars', 'GCP_PROJECT_ID=$PROJECT_ID,AUTO_WITHDRAWAL_THRESHOLD_USD=1000']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'eye-scanner', '--image', 'gcr.io/$PROJECT_ID/eye-scanner', '--region', 'us-central1', '--platform', 'managed', '--no-allow-unauthenticated', '--set-env-vars', 'PROJECT_ID=$PROJECT_ID']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args: ['run', 'deploy', 'brain-orchestrator', '--image', 'gcr.io/$PROJECT_ID/brain-orchestrator', '--region', 'us-central1', '--platform', 'managed', '--no-allow-unauthenticated', '--set-env-vars', 'PROJECT_ID=$PROJECT_ID']
+
+images:
+  - 'gcr.io/$PROJECT_ID/user-api-service'
+  - 'gcr.io/$PROJECT_ID/eye-scanner'
+  - 'gcr.io/$PROJECT_ID/brain-orchestrator'

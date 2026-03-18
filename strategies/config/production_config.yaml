@@ -1,0 +1,181 @@
+# Alpha-Orion Strategies. Production Configuration
+
+## Global Settings
+environment: production
+debug: false
+log_level: INFO
+
+## API Endpoints
+apis:
+  # Blockchain/RPC Endpoints
+  polygon_zkevm:
+    rpc_url: ${POLYGON_ZKEVM_RPC_URL}
+    chain_id: 1101
+  
+  arbitrum:
+    rpc_url: ${ARBITERUM_RPC_URL}
+    chain_id: 42161
+  
+  optimism:
+    rpc_url: ${OPTIMISM_RPC_URL}
+    chain_id: 10
+  
+  # DEX Aggregators
+  oneinch:
+    api_url: https://api.1inch.io/v5.0
+    api_key: ${ONEINCH_API_KEY}
+  
+  # Options Platforms
+  opyn:
+    api_url: https://api.opyn.fi
+    api_key: ${OPYN_API_KEY}
+  
+  # Perpetuals Platforms
+  dydx:
+    api_url: https://api.dydx.exchange/v3
+    api_key: ${DYDX_API_KEY}
+    api_secret: ${DYDX_API_SECRET}
+    api_passphrase: ${DYDX_API_PASSPHRASE}
+  
+  gmx:
+    api_url: https://api.gmx.io
+    api_key: ${GMX_API_KEY}
+
+## Strategy Settings
+strategies:
+  triangular_arbitrage:
+    enabled: true
+    min_profit_threshold: 0.003  # 0.3%
+    max_slippage: 0.002  # 0.2%
+    execution_timeout: 5000  # ms
+    chains:
+      - polygon_zkevm
+      - arbitrum
+    dexes:
+      - quickswap
+      - uniswap_v3
+      - sushiswap
+  
+  options_arbitrage:
+    enabled: true
+    min_profit_threshold: 0.01  # 1%
+    max_slippage: 0.005  # 0.5%
+    execution_timeout: 10000  # ms
+    platforms:
+      - opyn
+    risk_management:
+      max_position_size: 100000  # USD
+      stop_loss: 0.05  # 5%
+  
+  perpetuals_arbitrage:
+    enabled: true
+    min_profit_threshold: 0.005  # 0.5%
+    max_slippage: 0.003  # 0.3%
+    execution_timeout: 8000  # ms
+    platforms:
+      - dydx
+      - gmx
+    leverage: 3
+  
+  gamma_scalping:
+    enabled: true
+    rebalance_threshold: 0.02  # 2% delta deviation
+    execution_timeout: 15000  # ms
+    platforms:
+      - opyn
+  
+  delta_neutral:
+    enabled: true
+    target_delta: 0
+    rebalance_threshold: 0.01  # 1%
+    execution_timeout: 20000  # ms
+    instruments:
+      - options
+      - futures
+      - spot
+  
+  cross_exchange_arbitrage:
+    enabled: true
+    min_spread: 0.0005  # 0.05%
+    max_execution_time: 50  # ms
+    exchanges: 50
+    pairs: 200
+  
+  statistical_arbitrage:
+    enabled: true
+    lookback_period: 1000
+    z_score_threshold: 2.0
+    holding_period: 300  # 5 minutes
+    pairs: 100
+  
+  batch_auction_arbitrage:
+    enabled: true
+    batch_window: 30000  # 30 seconds
+    min_orders: 10
+    max_orders: 1000
+    solvers: 20
+  
+  path_optimization_arbitrage:
+    enabled: true
+    max_hops: 5
+    liquidity_sources: 100
+    refresh_rate: 50  # ms
+    max_splits: 10
+  
+  cross_asset_arbitrage:
+    enabled: true
+    min_profit_threshold: 0.01  # 1%
+    assets:
+      - crypto
+      - stocks
+      - forex
+    bridges:
+      - wormhole
+      - layerzero
+
+## Risk Management
+risk_management:
+  max_total_exposure: 1000000  # USD
+  max_daily_loss: 50000  # USD
+  var_confidence: 0.999
+  position_limits:
+    single_asset: 0.05  # 5% of portfolio
+    single_strategy: 0.10  # 10% of portfolio
+  
+  circuit_breakers:
+    rapid_loss_threshold: 0.03  # 3%
+    rapid_loss_window: 300  # 5 minutes
+    cooldown_period: 600  # 10 minutes
+
+## Execution Settings
+execution:
+  gas_optimization:
+    enabled: true
+    max_gas_price: 100  # gwei
+    gas_price_strategy: dynamic
+  
+  atomic_execution:
+    enabled: true
+    rollback_on_failure: true
+    timeout_protection: true
+  
+  mev_protection:
+    enabled: true
+    bundle_submission: true
+
+## Monitoring
+monitoring:
+  metrics_enabled: true
+  metrics_endpoint: ${PROMETHEUS_ENDPOINT}
+  alerts_enabled: true
+  alert_endpoints:
+    - slack
+    - pagerduty
+  
+  logging:
+    level: INFO
+    format: json
+    outputs:
+      - console
+      - file
+      - cloudwatch

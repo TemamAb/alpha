@@ -1,0 +1,222 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: arbitrage-gateway
+  namespace: arbitrage
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: arbitrage-tls
+    hosts:
+    - "api.alpha-orion.com"
+    - "dashboard.alpha-orion.com"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: brain-orchestrator-vs
+  namespace: arbitrage
+spec:
+  hosts:
+  - "api.alpha-orion.com"
+  gateways:
+  - arbitrage-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/api/v1/orchestrator"
+    route:
+    - destination:
+        host: brain-orchestrator.arbitrage.svc.cluster.local
+        port:
+          number: 8000
+  - match:
+    - uri:
+        prefix: "/api/v1/compliance"
+    route:
+    - destination:
+        host: compliance-service.arbitrage.svc.cluster.local
+        port:
+          number: 8003
+  - match:
+    - uri:
+        prefix: "/api/v1/risk"
+    route:
+    - destination:
+        host: advanced-risk-engine.arbitrage.svc.cluster.local
+        port:
+          number: 8001
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: dashboard-vs
+  namespace: arbitrage
+spec:
+  hosts:
+  - "dashboard.alpha-orion.com"
+  gateways:
+  - arbitrage-gateway
+  http:
+  - match:
+    - uri:
+        prefix: "/"
+    route:
+    - destination:
+        host: frontend.arbitrage.svc.cluster.local
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: arbitrage-services-dr
+  namespace: arbitrage
+spec:
+  host: "*.arbitrage.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 10
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: arbitrage
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend-access
+  namespace: arbitrage
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/arbitrage/sa/frontend"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: brain-orchestrator-policy
+  namespace: arbitrage
+spec:
+  selector:
+    matchLabels:
+      app: brain-orchestrator
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/arbitrage/sa/frontend"]
+    - source:
+        principals: ["cluster.local/ns/arbitrage/sa/advanced-risk-engine"]
+  - to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/execute-arbitrage"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: compliance-service-policy
+  namespace: arbitrage
+spec:
+  selector:
+    matchLabels:
+      app: compliance-service
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/arbitrage/sa/brain-orchestrator"]
+    - source:
+        principals: ["cluster.local/ns/arbitrage/sa/advanced-risk-engine"]
+---
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: external-apis
+  namespace: arbitrage
+spec:
+  hosts:
+  - "*.alchemy.com"
+  - "*.infura.io"
+  - "*.quiknode.pro"
+  - "api.chainalysis.com"
+  - "*.thegraph.com"
+  - "*.coinmarketcap.com"
+  ports:
+  - number: 443
+    name: https
+    protocol: HTTPS
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: external-egress
+  namespace: arbitrage
+spec:
+  hosts:
+  - "*.alchemy.com"
+  - "*.infura.io"
+  - "*.quiknode.pro"
+  - "api.chainalysis.com"
+  - "*.thegraph.com"
+  - "*.coinmarketcap.com"
+  http:
+  - match:
+    - port: 443
+    route:
+    - destination:
+        host: istio-egressgateway.istio-system.svc.cluster.local
+        port:
+          number: 443
+  tls:
+  - match:
+    - port: 443
+      sniHosts:
+      - "*.alchemy.com"
+      - "*.infura.io"
+      - "*.quiknode.pro"
+      - "api.chainalysis.com"
+      - "*.thegraph.com"
+      - "*.coinmarketcap.com"
+    route:
+    - destination:
+        host: istio-egressgateway.istio-system.svc.cluster.local
+        port:
+          number: 443

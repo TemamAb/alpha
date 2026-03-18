@@ -1,0 +1,100 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Gas Costs and Execution Quality",
+    "tags": ["alpha-orion", "gas", "execution"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Average Gas Price",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "avg(rate(gas_price_gwei[5m]))",
+            "legendFormat": "Gas Price (Gwei)"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Transaction Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(transaction_success_total[5m]) / rate(transaction_total[5m]) * 100",
+            "legendFormat": "Success Rate %"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Execution Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(execution_latency_seconds_bucket[5m]))",
+            "legendFormat": "95th Percentile Latency"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Gas Usage by Strategy",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "sum(rate(gas_used_total{strategy=~\"$strategy\"}[5m])) by (strategy)",
+            "legendFormat": "{{strategy}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": [
+        {
+          "type": "query",
+          "name": "strategy",
+          "query": "label_values(strategy)",
+          "label": "Strategy"
+        }
+      ]
+    },
+    "annotations": {
+      "list": []
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 0,
+    "links": []
+  }
+}

@@ -1,0 +1,47 @@
+openapi: 3.0.3
+info:
+  title: Brain Simulation Service API
+  version: 1.0.0
+  description: API for brain simulation operations
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /simulate:
+    get:
+      summary: Run brain simulation
+      responses:
+        '200':
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scenario:
+                    type: string
+                  outcome:
+                    type: string
+                    enum: [Profit, Loss, "Break Even"]
+                  pnl:
+                    type: number
+                  confidence:
+                    type: number
+                    minimum: 0.5
+                    maximum: 0.95
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok

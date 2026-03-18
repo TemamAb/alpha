@@ -1,0 +1,25 @@
+# Development Configuration
+database:
+  url: postgresql://user:pass@localhost:5432/alpha_orion_dev
+
+redis:
+  url: redis://localhost:6379
+
+gcp:
+  project_id: alpha-orion-dev
+  region: us-central1
+
+services:
+  brain_simulation:
+    port: 8080
+  user_api:
+    port: 8081
+
+logging:
+  level: DEBUG
+
+secrets:
+  jwt_secret: dev_jwt_secret_key
+  api_keys:
+    binance: dev_binance_key
+    coinbase: dev_coinbase_key

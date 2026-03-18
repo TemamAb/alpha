@@ -1,0 +1,12 @@
+apache-beam[gcp]==2.50.0
+pytest==7.4.0
+pytest-mock==3.11.1
+pytest==7.4.0
+pytest-mock==3.11.1
+circuitbreaker
+google-cloud-logging
+google-cloud-monitoring
+requests
+pytest-cov==4.1.0
+flake8==6.1.0
+black==23.11.0

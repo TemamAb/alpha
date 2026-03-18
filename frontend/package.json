@@ -1,0 +1,17 @@
+{
+  "name": "real-time-service",
+  "version": "1.0.0",
+  "description": "Alpha-Orion real-time blockchain data streamer.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "ethers": "^6.8.1",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.8"
+  }
+}

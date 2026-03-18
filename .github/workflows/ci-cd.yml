@@ -1,0 +1,535 @@
+name: Alpha-Orion CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  REGISTRY: us-docker.pkg.dev
+  PROJECT_ID: alpha-orion
+  REGION: us-central1
+
+jobs:
+  # ============================================
+  # SECURITY & COMPLIANCE GATES
+  # ============================================
+
+  security-scan:
+    name: '🔒 Security & Compliance Scan'
+    runs-on: ubuntu-latest
+    outputs:
+      security-status: ${{ steps.security.outputs.status }}
+      compliance-status: ${{ steps.compliance.outputs.status }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        id: trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Security Gate Check
+        id: security
+        run: |
+          # Check for critical vulnerabilities
+          critical_count=$(grep -c '"severity": "CRITICAL"' trivy-results.sarif || echo "0")
+          high_count=$(grep -c '"severity": "HIGH"' trivy-results.sarif || echo "0")
+
+          echo "Critical vulnerabilities: $critical_count"
+          echo "High vulnerabilities: $high_count"
+
+          if [ "$critical_count" -gt 0 ]; then
+            echo "❌ Critical security vulnerabilities found"
+            echo "status=fail" >> $GITHUB_OUTPUT
+            exit 1
+          elif [ "$high_count" -gt 5 ]; then
+            echo "❌ Too many high-severity vulnerabilities ($high_count > 5)"
+            echo "status=fail" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ Security requirements met"
+            echo "status=pass" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Compliance Check
+        id: compliance
+        run: |
+          # Check for required compliance files
+          if [ -f "TESTING_PROTOCOL.md" ] && [ -f "PHASE_1_VALIDATION_REPORT.md" ]; then
+            echo "✅ Compliance documentation present"
+            echo "status=pass" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Missing compliance documentation"
+            echo "status=fail" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  # ============================================
+  # UNIT TESTING
+  # ============================================
+
+  unit-tests:
+    name: '🧪 Unit Tests'
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: needs.security-scan.outputs.security-status == 'pass'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            alpha-orion/smart-contracts/package-lock.json
+            dashboard/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install Python dependencies
+        run: |
+          cd backend-services/services
+          pip install -r brain-orchestrator/src/requirements.txt
+          pip install -r compliance-service/src/requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Smart Contract Tests
+        run: |
+          cd alpha-orion/smart-contracts
+          npm install
+          npm test -- --coverage --coverageReporters=json
+
+      - name: Backend Unit Tests
+        run: |
+          cd backend-services/services
+          python -m pytest brain-orchestrator/src/ --cov=brain-orchestrator/src --cov-report=term-missing --cov-report=xml --cov-fail-under=90 -v
+
+      - name: Compliance Service Tests
+        run: |
+          cd backend-services/services/compliance-service/src
+          python -m pytest --cov=. --cov-report=term-missing -v
+
+      - name: Frontend Unit Tests
+        run: |
+          cd dashboard
+          npm install
+          npm test -- --coverage --coverageReporters=json --collectCoverageFrom='src/**/*.{ts,tsx}' --watchAll=false
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend-services/services/coverage.xml,./dashboard/coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ============================================
+  # INTEGRATION TESTING
+  # ============================================
+
+  integration-tests:
+    name: '🔗 Integration Tests'
+    runs-on: ubuntu-latest
+    needs: [security-scan, unit-tests]
+    if: needs.security-scan.outputs.security-status == 'pass'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install docker-compose
+          pip install requests
+
+      - name: Run Integration Tests
+        run: |
+          # Start test environment
+          docker-compose -f docker-compose.test.yml up -d --build
+
+          # Wait for services
+          sleep 60
+
+          # Run integration test script
+          python test_compliance_integration.py
+
+          # Test service health
+          curl -f http://localhost:8080/health || exit 1
+          curl -f http://localhost:8003/health || exit 1
+
+        continue-on-error: false
+
+      - name: Cleanup test environment
+        if: always()
+        run: |
+          docker-compose -f docker-compose.test.yml down -v
+
+  # ============================================
+  # PERFORMANCE TESTING
+  # ============================================
+
+  performance-tests:
+    name: '⚡ Performance Tests'
+    runs-on: ubuntu-latest
+    needs: [security-scan, integration-tests]
+    if: needs.security-scan.outputs.security-status == 'pass'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.45.0/k6-v0.45.0-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-v0.45.0-linux-amd64/k6 /usr/local/bin/
+
+      - name: Run Performance Tests
+        run: |
+          # Start local services for testing
+          docker-compose up -d --build
+          sleep 60
+
+          # Run k6 performance tests
+          k6 run --vus 10 --duration 30s docker/k6-performance-test.js
+
+          # API latency validation
+          python -c "
+          import requests
+          import time
+          import statistics
+
+          latencies = []
+          for i in range(10):
+              start = time.time()
+              response = requests.get('http://localhost:8080/health')
+              end = time.time()
+              if response.status_code == 200:
+                  latencies.append((end - start) * 1000)
+
+          avg_latency = statistics.mean(latencies)
+          print(f'Average latency: {avg_latency:.2f}ms')
+
+          if avg_latency > 100:
+              print(f'❌ Average latency {avg_latency:.2f}ms exceeds 100ms threshold')
+              exit(1)
+          else:
+              print('✅ Performance requirements met')
+          "
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose down -v
+
+  # ============================================
+  # CONTAINER BUILDING
+  # ============================================
+
+  build-containers:
+    name: '🐳 Build & Push Containers'
+    runs-on: ubuntu-latest
+    needs: [security-scan, unit-tests, integration-tests, performance-tests]
+    if: needs.security-scan.outputs.security-status == 'pass'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Build and push Frontend
+        run: |
+          docker build -f docker/frontend.Dockerfile -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/frontend:${{ github.sha }} .
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/frontend:${{ github.sha }}
+
+      - name: Build and push Backend
+        run: |
+          docker build -f docker/backend.Dockerfile -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/backend:${{ github.sha }} .
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/backend:${{ github.sha }}
+
+      - name: Build and push Scanner
+        run: |
+          docker build -f docker/scanner.Dockerfile -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/scanner:${{ github.sha }} .
+          docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/scanner:${{ github.sha }}
+
+  # ============================================
+  # DEPLOYMENT TO STAGING
+  # ============================================
+
+  deploy-staging:
+    name: '🚀 Deploy to Staging'
+    runs-on: ubuntu-latest
+    needs: build-containers
+    if: github.ref == 'refs/heads/develop' && needs.security-scan.outputs.security-status == 'pass'
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Deploy to Cloud Run (Staging)
+        run: |
+          gcloud run deploy brain-orchestrator-staging \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/backend:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=staging"
+
+          gcloud run deploy compliance-service-staging \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/backend:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=staging"
+
+      - name: Run Staging Smoke Tests
+        run: |
+          # Wait for deployment
+          sleep 120
+
+          # Get service URLs
+          ORCHESTRATOR_URL=$(gcloud run services describe brain-orchestrator-staging --region=${{ env.REGION }} --format="value(status.url)")
+          COMPLIANCE_URL=$(gcloud run services describe compliance-service-staging --region=${{ env.REGION }} --format="value(status.url)")
+
+          # Test health endpoints
+          curl -f $ORCHESTRATOR_URL/health || exit 1
+          curl -f $COMPLIANCE_URL/health || exit 1
+
+          echo "✅ Staging deployment successful"
+
+  # ============================================
+  # DEPLOYMENT TO PRODUCTION
+  # ============================================
+
+  deploy-production:
+    name: '🎯 Deploy to Production'
+    runs-on: ubuntu-latest
+    needs: [build-containers, deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && needs.security-scan.outputs.security-status == 'pass'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Deploy to Cloud Run (Production)
+        run: |
+          gcloud run deploy brain-orchestrator \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/backend:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=production"
+
+          gcloud run deploy compliance-service \
+            --image ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/alpha-orion-repo/backend:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "ENVIRONMENT=production"
+
+      - name: Update Traffic (Blue-Green Deployment)
+        run: |
+          # Implement blue-green deployment logic
+          echo "🔄 Performing blue-green deployment..."
+
+          # Health checks
+          sleep 120
+          ORCHESTRATOR_URL=$(gcloud run services describe brain-orchestrator --region=${{ env.REGION }} --format="value(status.url)")
+          COMPLIANCE_URL=$(gcloud run services describe compliance-service --region=${{ env.REGION }} --format="value(status.url)")
+
+          curl -f $ORCHESTRATOR_URL/health || exit 1
+          curl -f $COMPLIANCE_URL/health || exit 1
+
+          echo "✅ Production deployment successful"
+
+      - name: Create Deployment Tag
+        run: |
+          git tag "v$(date +%Y%m%d-%H%M%S)-${{ github.sha }}"
+          git push origin --tags
+
+  # ============================================
+  # FINAL VALIDATION & REPORTING
+  # ============================================
+
+  validation-report:
+    name: '📋 Generate Validation Report'
+    runs-on: ubuntu-latest
+    needs: [security-scan, unit-tests, integration-tests, performance-tests]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Pipeline Report
+        run: |
+          cat > pipeline-report.json << EOF
+          {
+            "pipeline_run": "${{ github.run_id }}",
+            "commit_sha": "${{ github.sha }}",
+            "branch": "${{ github.ref }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "results": {
+              "security_scan": "${{ needs.security-scan.result }}",
+              "unit_tests": "${{ needs.unit-tests.result }}",
+              "integration_tests": "${{ needs.integration-tests.result }}",
+              "performance_tests": "${{ needs.performance-tests.result }}",
+              "container_build": "${{ needs.build-containers.result }}",
+              "staging_deployment": "${{ needs.deploy-staging.result }}",
+              "production_deployment": "${{ needs.deploy-production.result }}"
+            },
+            "testing_protocol_compliance": {
+              "mandatory_tests_passed": ${{ needs.unit-tests.result == 'success' && needs.integration-tests.result == 'success' && needs.security-scan.outputs.security-status == 'pass' }},
+              "performance_benchmarks_met": ${{ needs.performance-tests.result == 'success' }},
+              "security_requirements_satisfied": ${{ needs.security-scan.outputs.security-status == 'pass' }},
+              "phase_advancement_approved": ${{ needs.unit-tests.result == 'success' && needs.integration-tests.result == 'success' && needs.performance-tests.result == 'success' && needs.security-scan.outputs.security-status == 'pass' }}
+            }
+          }
+          EOF
+
+      - name: Upload Pipeline Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: pipeline-validation-report
+          path: pipeline-report.json
+
+      - name: Pipeline Summary
+        run: |
+          echo "## 🚀 Alpha-Orion CI/CD Pipeline Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID:** ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.security-scan.outputs.security-status }}" == "pass" ] && \
+             [ "${{ needs.unit-tests.result }}" == "success" ] && \
+             [ "${{ needs.integration-tests.result }}" == "success" ] && \
+             [ "${{ needs.performance-tests.result }}" == "success" ]; then
+            echo "✅ **PHASE ADVANCEMENT APPROVED**" >> $GITHUB_STEP_SUMMARY
+            echo "All testing protocol requirements satisfied!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **PHASE ADVANCEMENT BLOCKED**" >> $GITHUB_STEP_SUMMARY
+            echo "Testing protocol requirements not met." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Results:" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔒 Security Scan: ${{ needs.security-scan.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🧪 Unit Tests: ${{ needs.unit-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔗 Integration Tests: ${{ needs.integration-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚡ Performance Tests: ${{ needs.performance-tests.result }}" >> $GITHUB_STEP_SUMMARY

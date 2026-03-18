@@ -1,0 +1,40 @@
+# Alpha-Orion Strategies Dependencies
+
+# Core
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Web3 & Blockchain
+web3>=6.0.0
+eth-brownie>=1.19.0
+web3.py>=6.0.0
+
+# Data & Analysis
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+statsmodels>=0.14.0
+
+# APIs & HTTP
+requests>=2.31.0
+aiohttp>=3.8.0
+httpx>=0.24.0
+
+# Async
+asyncio-throttle>=1.0.2
+
+# Logging & Monitoring
+prometheus-client>=0.17.0
+structlog>=23.1.0
+
+# Risk Management
+quantstats>=0.0.60
+
+# Database
+redis>=4.5.0
+sqlalchemy>=2.0.0
+
+# Utilities
+python-dateutil>=2.8.0
+pytz>=2023.3

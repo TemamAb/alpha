@@ -1,0 +1,47 @@
+filebeat.inputs:
+- type: container
+  paths:
+    - '/var/lib/docker/containers/*/*.log'
+  processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+      match_source: true
+      match_source_index: 4
+      match_short_id: false
+      cleanup_timeout: 60
+  - decode_json_fields:
+      fields: ["message"]
+      target: "json"
+      overwrite_keys: true
+  - drop_event:
+      when:
+        or:
+        - equals:
+            docker.container.name: "filebeat"
+        - equals:
+            docker.container.name: "logstash"
+        - equals:
+            docker.container.name: "elasticsearch"
+        - equals:
+            docker.container.name: "kibana"
+        - equals:
+            docker.container.name: "prometheus"
+        - equals:
+            docker.container.name: "grafana"
+        - equals:
+            docker.container.name: "alertmanager"
+
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+output.logstash:
+  hosts: ["logstash:5044"]
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644

@@ -1,0 +1,15 @@
+flask==2.3.3
+flask-cors==4.0.0
+pytest==7.4.0
+pytest-mock==3.11.1
+pytest==7.4.0
+pytest-mock==3.11.1
+circuitbreaker
+google-cloud-logging
+google-cloud-monitoring
+circuitbreaker  
+google-cloud-logging  
+google-cloud-monitoring 
+pytest-cov==4.1.0  
+flake8==6.1.0  
+black==23.11.0 

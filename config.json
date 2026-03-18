@@ -1,0 +1,17 @@
+{
+    "projectId": "alpha-orion-485207",
+    "region": "us-central1",
+    "serviceName": "brain-orchestrator",
+    "imageTag": "v7-release",
+    "cloudSqlInstance": "alpha-orion-485207:us-central1:alpha-orion-db",
+    "vpcConnector": "",
+    "envVars": {
+        "DATABASE_URL": "postgresql://orion_user:aB3cD4eF5gH6iJ7k@localhost:5432/alpha_orion",
+        "REDIS_URL": "redis://10.118.0.3:6379",
+        "JWT_SECRET": "temporary-secret-key-for-startup",
+        "FLASK_ENV": "production",
+        "ONE_INCH_API_KEY": "placeholder_key",
+        "INFURA_API_KEY": "placeholder_key",
+        "ETHERSCAN_API_KEY": "placeholder_key"
+    }
+}

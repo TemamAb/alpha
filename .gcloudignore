@@ -1,0 +1,7 @@
+# Exclude the corrupted file
+strategies/orchestrator.py*
+node_modules/
+.git/
+*.log
+*.pyc
+__pycache__/

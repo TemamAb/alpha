@@ -1,0 +1,161 @@
+groups:
+  - name: alpha_orion_alerts
+    rules:
+      # Critical Profit Alerts
+      - alert: ProfitDrawdownCritical
+        expr: rate(alpha_orion_profit_realized_usd[5m]) < -0.05
+        for: 1m
+        labels:
+          severity: critical
+          team: trading
+        annotations:
+          summary: "Critical profit drawdown detected"
+          description: "Profit has dropped more than 5% in the last 5 minutes"
+          value: "{{ $value }}"
+
+      - alert: ProfitDrawdownWarning
+        expr: rate(alpha_orion_profit_realized_usd[10m]) < -0.02
+        for: 2m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "Profit drawdown warning"
+          description: "Profit has dropped more than 2% in the last 10 minutes"
+          value: "{{ $value }}"
+
+      # Service Health Alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High error rate on {{ $labels.job }}"
+          description: "Error rate > 5% for {{ $labels.job }} over last 5 minutes"
+          value: "{{ $value }}"
+
+      # Performance Alerts
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(alpha_orion_execution_latency_ms_bucket[5m])) > 2000
+        for: 2m
+        labels:
+          severity: warning
+          team: performance
+        annotations:
+          summary: "High execution latency"
+          description: "95th percentile execution latency > 2000ms"
+          value: "{{ $value }}ms"
+
+      - alert: HighGasCosts
+        expr: rate(alpha_orion_gas_spent_usd_total[1h]) > 100
+        for: 5m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "High gas costs detected"
+          description: "Gas spending rate > $100/hour"
+          value: "${{ $value }}/hour"
+
+      # Trade Execution Alerts
+      - alert: LowTradeSuccessRate
+        expr: rate(alpha_orion_trades_executed_total{status="success"}[10m]) / rate(alpha_orion_trades_executed_total[10m]) < 0.95
+        for: 5m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "Low trade success rate"
+          description: "Trade success rate < 95% over last 10 minutes"
+          value: "{{ $value }}"
+
+      - alert: NoTradesExecuted
+        expr: rate(alpha_orion_trades_executed_total[15m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "No trades executed recently"
+          description: "No trades have been executed in the last 15 minutes"
+
+      # System Resource Alerts
+      - alert: HighMemoryUsage
+        expr: (1 - process_resident_memory_bytes / process_virtual_memory_bytes) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage > 90%"
+          value: "{{ $value }}"
+
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_user_seconds_total[5m]) / rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage > 80%"
+          value: "{{ $value }}"
+
+      # Database Alerts
+      - alert: DatabaseConnectionFailed
+        expr: pg_stat_activity_count{state="idle"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Database connection failed"
+          description: "No active database connections detected"
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis is down"
+          description: "Redis service is not responding"
+
+      # MEV Protection Alerts
+      - alert: HighMEVLoss
+        expr: histogram_quantile(0.95, rate(alpha_orion_mev_loss_percentage_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          team: trading
+        annotations:
+          summary: "High MEV loss detected"
+          description: "MEV loss > 2% on 95th percentile"
+          value: "{{ $value }}%"
+
+      # Compliance Alerts
+      - alert: ComplianceCheckFailed
+        expr: increase(compliance_checks_failed_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: compliance
+        annotations:
+          summary: "Compliance check failed"
+          description: "Compliance validation failed - immediate review required"
+          value: "{{ $value }} failures"

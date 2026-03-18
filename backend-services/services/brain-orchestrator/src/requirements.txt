@@ -1,0 +1,34 @@
+# Core Flask dependencies
+flask==3.0.0
+flask-cors==4.0.0
+
+# Web3 for blockchain integration
+web3==6.11.0
+
+# Google Cloud dependencies
+google-cloud-logging==3.8.0
+google-cloud-monitoring==3.7.0
+google-cloud-pubsub==2.18.0
+google-cloud-storage==2.14.0
+google-cloud-bigquery==3.14.0
+google-cloud-bigtable==2.23.0
+google-cloud-secret-manager==2.18.0
+
+# Database
+psycopg2-binary==2.9.9
+redis==5.0.1
+
+# Authentication
+pyjwt==2.8.0
+
+# Testing & Linting
+pytest==7.4.0
+pytest-mock==3.11.1
+pytest-cov==4.1.0
+flake8==6.1.0
+black==23.11.0
+
+# Utilities
+python-dotenv==1.0.0
+requests==2.31.0
+circuitbreaker==1.4.0

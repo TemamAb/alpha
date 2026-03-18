@@ -1,0 +1,347 @@
+version: '3.8'
+
+services:
+  # Frontend Dashboard
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - brain-orchestrator
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Brain Orchestrator (Main API)
+  brain-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_NAME=brain-orchestrator
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://user:password@postgres:5432/alpha_orion
+      - COMPLIANCE_SERVICE_URL=http://compliance-service:8003
+    volumes:
+      - ./backend-services/services/brain-orchestrator/src:/app/backend-services/services/brain-orchestrator/src
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Compliance Service
+  compliance-service:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - SERVICE_NAME=compliance-service
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./backend-services/services/compliance-service/src:/app/backend-services/services/compliance-service/src
+    depends_on:
+      - redis
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command: ["python", "backend-services/services/compliance-service/src/main.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # AI Optimization Orchestrator
+  brain-ai-optimization-orchestrator:
+    build:
+      context: .
+      dockerfile: docker/scanner.Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - SERVICE_NAME=brain-ai-optimization-orchestrator
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://user:password@postgres:5432/alpha_orion
+      - ENABLE_ML_PIPELINE=true
+      - SCAN_INTERVAL=5
+    volumes:
+      - ./backend-services/services/brain-ai-optimization-orchestrator/src:/app
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  # Blockchain Monitor
+  blockchain-monitor:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      - SERVICE_NAME=blockchain-monitor
+      - ETHEREUM_RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+      - ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
+      - POLYGON_RPC_URL=https://polygon-rpc.com
+    volumes:
+      - ./backend-services/services/blockchain-monitor/src:/app/backend-services/services/blockchain-monitor/src
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command: ["python", "backend-services/services/blockchain-monitor/src/main.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Smart Contract Monitor
+  smart-contract-monitor:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8006:8006"
+    environment:
+      - SERVICE_NAME=smart-contract-monitor
+      - ETHEREUM_RPC_URL=https://mainnet.infura.io/v3/YOUR_PROJECT_ID
+      - ARBITRUM_RPC_URL=https://arb1.arbitrum.io/rpc
+      - FLASH_LOAN_ARBITRAGE_MAINNET=0x0000000000000000000000000000000000000000
+      - FLASH_LOAN_ARBITRAGE_ARBITRUM=0x0000000000000000000000000000000000000000
+    volumes:
+      - ./backend-services/services/smart-contract-monitor/src:/app/backend-services/services/smart-contract-monitor/src
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command: ["python", "backend-services/services/smart-contract-monitor/src/main.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backtesting Service
+  backtesting:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    ports:
+      - "8007:8007"
+    environment:
+      - SERVICE_NAME=backtesting
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://user:password@postgres:5432/alpha_orion
+    volumes:
+      - ./backend-services/services/backtesting/src:/app/backend-services/services/backtesting/src
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command: ["python", "backend-services/services/backtesting/src/main.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=alpha_orion
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres-sharding.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d alpha_orion"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+  # Alertmanager for Alert Handling
+  alertmanager:
+    image: prom/alertmanager:latest
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./docker/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Elasticsearch for Log Storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Logstash for Log Processing
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    volumes:
+      - ./docker/logstash/pipeline:/usr/share/logstash/pipeline
+      - ./docker/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Kibana for Log Visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Filebeat for Log Collection
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.0
+    volumes:
+      - ./docker/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - alpha-orion
+    restart: unless-stopped
+    depends_on:
+      - logstash
+    user: root
+
+volumes:
+  redis_data:
+  postgres_data:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+  elasticsearch_data:
+
+networks:
+  alpha-orion:
+    driver: bridge

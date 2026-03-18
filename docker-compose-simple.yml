@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Frontend Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001
+    depends_on:
+      - user-api-service
+
+  # Database
+  db:
+    image: postgres:13
+    ports:
+      - "3007:5432"
+    environment:
+      - POSTGRES_DB=alpha_orion
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "3008:6379"
+    volumes:
+      - redis_data:/data
+
+  # Main API Gateway
+  user-api-service:
+    build:
+      context: ./backend-services/services/user-api-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:8080"
+    environment:
+      - NODE_ENV=development
+      - AI_OPTIMIZER_URL=http://ai-optimizer:8080
+    depends_on:
+      - ai-optimizer
+
+  # AI Optimizer (key service for profit generation)
+  ai-optimizer:
+    build:
+      context: ./backend-services/services/ai-optimizer
+      dockerfile: Dockerfile
+    ports:
+      - "3002:8080"
+    environment:
+      - PROJECT_ID=alpha-orion
+      - DATABASE_URL=postgresql://user:password@db:5432/alpha_orion
+      - REDIS_URL=redis://redis:6379
+
+  # Withdrawal Service (profit withdrawal functionality)
+  withdrawal-service:
+    build:
+      context: ./backend-services/services/withdrawal-service
+      dockerfile: Dockerfile
+    ports:
+      - "3003:8080"
+    environment:
+      - NODE_ENV=development
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,55 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "alerting_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'brain-orchestrator'
+    static_configs:
+      - targets: ['brain-orchestrator:8080']
+    scrape_interval: 5s
+    metrics_path: '/metrics'
+
+  - job_name: 'compliance-service'
+    static_configs:
+      - targets: ['compliance-service:8003']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  - job_name: 'brain-ai-optimization-orchestrator'
+    static_configs:
+      - targets: ['brain-ai-optimization-orchestrator:8080']
+    scrape_interval: 5s
+    metrics_path: '/metrics'
+
+  - job_name: 'blockchain-monitor'
+    static_configs:
+      - targets: ['blockchain-monitor:8005']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  - job_name: 'smart-contract-monitor'
+    static_configs:
+      - targets: ['smart-contract-monitor:8006']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:9187']

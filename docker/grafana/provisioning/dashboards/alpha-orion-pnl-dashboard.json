@@ -1,0 +1,138 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Alpha-Orion P&L and Profit Tracking",
+    "tags": ["alpha-orion", "trading", "pnl"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Realized Profit (USD)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "alpha_orion_profit_realized_usd",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "orange",
+                  "value": 0
+                },
+                {
+                  "color": "green",
+                  "value": 1000
+                }
+              ]
+            }
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Profit Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "alpha_orion_profit_realized_usd",
+            "refId": "A",
+            "legendFormat": "Realized Profit"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Trades Executed",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "alpha_orion_trades_executed_total",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 0,
+          "y": 8
+        }
+      },
+      {
+        "id": 4,
+        "title": "Trade Success Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(alpha_orion_trades_executed_total{status=\"success\"}[5m]) / rate(alpha_orion_trades_executed_total[5m]) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 8,
+          "y": 8
+        }
+      },
+      {
+        "id": 5,
+        "title": "Gas Costs (USD)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "alpha_orion_gas_spent_usd_total",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 8,
+          "x": 16,
+          "y": 8
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 0,
+    "links": []
+  }
+}

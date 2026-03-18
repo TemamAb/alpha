@@ -1,0 +1,104 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-02-10T03:00:00Z",
+  "project": "Alpha-Orion",
+  "environments": {
+    "production": {
+      "network": "ethereum-mainnet",
+      "chainId": 1,
+      "artifactRegistry": {
+        "us": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo",
+        "eu": "europe-west1-docker.pkg.dev/alpha-orion/alpha-orion-repo-eu"
+      },
+      "services": {
+        "brain-orchestrator": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/brain-orchestrator",
+          "tag": "latest",
+          "deployments": []
+        },
+        "eye-scanner": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/eye-scanner",
+          "tag": "latest",
+          "deployments": []
+        },
+        "hand-blockchain-proxy": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/hand-blockchain-proxy",
+          "tag": "latest",
+          "deployments": []
+        },
+        "brain-risk-management": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/brain-risk-management",
+          "tag": "latest",
+          "deployments": []
+        },
+        "ai-agent-service": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/ai-agent-service",
+          "tag": "latest",
+          "deployments": []
+        },
+        "ai-optimizer": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/ai-optimizer",
+          "tag": "latest",
+          "deployments": []
+        },
+        "benchmarking-scraper": {
+          "registry": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo/benchmarking-scraper",
+          "tag": "latest",
+          "deployments": []
+        }
+      },
+      "smartContracts": {
+        "FlashLoanArbitrage": {
+          "address": null,
+          "txHash": null,
+          "deployer": null,
+          "deployedAt": null,
+          "verified": false,
+          "networks": {
+            "mainnet": {
+              "address": null,
+              "txHash": null,
+              "deployedAt": null
+            },
+            "sepolia": {
+              "address": null,
+              "txHash": null,
+              "deployedAt": null
+            }
+          }
+        }
+      },
+      "infrastructure": {
+        "cloudRun": {
+          "region": "us-central1",
+          "services": []
+        },
+        "cloudSQL": {
+          "instances": []
+        },
+        "redis": {
+          "instances": []
+        },
+        "pubSub": {
+          "topics": ["raw-opportunities", "processed-opportunities", "mode-changes", "production-arbitrage-trades"]
+        }
+      }
+    },
+    "staging": {
+      "network": "sepolia",
+      "chainId": 11155111,
+      "artifactRegistry": {
+        "us": "us-central1-docker.pkg.dev/alpha-orion/alpha-orion-repo-staging"
+      },
+      "services": {},
+      "smartContracts": {
+        "FlashLoanArbitrage": {
+          "address": null,
+          "txHash": null,
+          "deployedAt": null
+        }
+      }
+    }
+  },
+  "deploymentHistory": []
+}

@@ -1,0 +1,69 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Frontend (React/Vite)",
+            "request": "launch",
+            "type": "node",
+            "cwd": "${workspaceFolder}/frontend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev"
+            ],
+            "port": 5173, // Default Vite dev server port
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "envFile": "${workspaceFolder}/.env" // Load environment variables from project root .env
+        },
+        {
+            "name": "Launch Backend (Node.js)",
+            "request": "launch",
+            "type": "node",
+            "cwd": "${workspaceFolder}/backend",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run",
+                "dev" // As per README.md local development instructions
+            ],
+            "port": 8080, // Common port for Node.js backends, adjust if different
+            "console": "integratedTerminal",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "envFile": "${workspaceFolder}/.env" // Load environment variables from project root .env
+        },
+        {
+            "name": "Launch Python Scanner",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/scanner/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/scanner",
+            "envFile": "${workspaceFolder}/.env" // Load environment variables from project root .env
+        },
+        {
+            "name": "Launch Python Orchestrator",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/orchestrator/main.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/orchestrator",
+            "envFile": "${workspaceFolder}/.env" // Load environment variables from project root .env
+        },
+        {
+            "name": "Launch All Services (Compound)",
+            "configurations": [
+                "Launch Frontend (React/Vite)",
+                "Launch Backend (Node.js)",
+                "Launch Python Scanner",
+                "Launch Python Orchestrator"
+            ],
+            "type": "node", // Type is required for compound, but doesn't affect individual launches
+            "request": "launch",
+            "console": "integratedTerminal"
+        }
+    ]
+}
