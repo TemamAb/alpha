@@ -35,7 +35,7 @@ let wallet = {
   mode: 'manual', 
   threshold: 0.01, 
   address: '', 
-  envAddress: process.env.WALLET_ADDRESS || '0x748Aa8ee067585F5bd02f0988eF6E71f2d662751'
+  envAddress: process.env.WALLET_ADDRESS || ''
 };
 
 // Bot process reference (for local integration)
@@ -148,7 +148,7 @@ app.post('/api/wallet/mode', (req, res) => {
 // Production Relay API - uses Pimlico for GASLESS transactions
 
 // Pimlico configuration from .env
-const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY || 'pim_UbfKR9ocMe5ibNUCGgB8fE';
+const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
 
 const BUNDLER_URLS = {
     'ethereum': `https://api.pimlico.io/v1/1/rpc?apikey=${PIMLICO_API_KEY}`,
@@ -223,10 +223,10 @@ app.get('/api/health', (req, res) => {
 // Start server
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log('===========================================');
     console.log('  Alphamark Production Dashboard');
-    console.log(`  Server running on http://localhost:${PORT}`);
+    console.log(`  Server running on http://0.0.0.0:${PORT}`);
     console.log(`  Mode: PRODUCTION`);
     console.log('===========================================');
   });
@@ -248,16 +248,8 @@ if (require.main === module) {
     });
   });
 
-  // Periodic stats broadcast (simulate live data for demo)
-  setInterval(() => {
-    // Simulate finding opportunities
-    if (Math.random() > 0.7) {
-      botStats.activeOpps = Math.floor(Math.random() * 10);
-      broadcastUpdate();
-    }
-  }, 5000);
-
-  console.log('Dashboard server initialized in PRODUCTION mode');
+  console.log('Dashboard server initialized in PRODUCTION mode (Simulation DISABLED)');
+  console.log('Waiting for bot execution updates...');
 }
 
 // Export for Vercel
