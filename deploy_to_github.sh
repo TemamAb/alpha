@@ -49,7 +49,7 @@ Infrastructure:
 
 # Add remote (update with your repository URL)
 echo "🔗 Adding remote repository..."
-git remote add origin https://github.com/TemamAb/alphamark.git
+git remote add origin https://github.com/TemamAb/alpha.git
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
@@ -60,5 +60,11 @@ echo ""
 echo "📋 Next steps:"
 echo "1. Go to https://github.com/TemamAb/alphamark"
 echo "2. Configure repository settings"
-echo "3. Add secrets in GitHub Actions secrets"
+echo "3. Add secrets in GitHub Actions secrets:"
+echo "   - FLY_API_TOKEN"
+echo "   - PRIVATE_KEY"
+echo "   - PIMLICO_API_KEY"
+echo "   - WALLET_ADDRESS"
 echo "4. Deploy to Fly.io with: flyctl deploy"
+echo ""
+echo "⚠️ The app runs in LIVE TRADING MODE by default!"

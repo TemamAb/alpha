@@ -34,6 +34,22 @@
         .status-dot {
             box-shadow: 0 0 8px currentColor;
         }
+        /* Sidebar Button Styles - FIX for non-working buttons */
+        .sidebar-btn {
+            color: #9CA3AF;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .sidebar-btn:hover {
+            background-color: rgba(55, 65, 81, 0.5);
+            color: #F3F4F6;
+        }
+        .sidebar-btn.active {
+            background-color: #2563EB;
+            color: #FFFFFF;
+        }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
@@ -76,23 +92,23 @@
         <!-- NEW Navigational Sidebar -->
         <aside class="w-64 bg-[#0F172A] border-r border-gray-800 flex flex-col z-20 shrink-0">
             <div class="flex-1 p-4 space-y-2">
-                <button data-page="dashboard" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Dashboard">
+                <button data-page="dashboard" onclick="showPage('dashboard')" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Dashboard">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                     Dashboard
                 </button>
-                <button data-page="strategies" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Strategies">
+                <button data-page="strategies" onclick="showPage('strategies')" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Strategies">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     Strategies
                 </button>
-                <button data-page="wallet" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Wallet">
+                <button data-page="wallet" onclick="showPage('wallet')" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Wallet">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path></svg>
                     Wallet
                 </button>
-                <button data-page="streams" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Live Trades">
+                <button data-page="streams" onclick="showPage('streams')" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Live Trades">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                     Live Trades
                 </button>
-                <button data-page="copilot" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="AI Copilot">
+                <button data-page="copilot" onclick="showPage('copilot')" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="AI Copilot">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                     AI Copilot
                 </button>
@@ -751,11 +767,9 @@
             // Update active button style
             document.querySelectorAll('.sidebar-btn').forEach(btn => {
                 if (btn.dataset.page === pageId) {
-                    btn.classList.add('bg-blue-600', 'text-white');
-                    btn.classList.remove('text-gray-400', 'hover:bg-gray-800');
+                    btn.classList.add('active');
                 } else {
-                    btn.classList.remove('bg-blue-600', 'text-white');
-                    btn.classList.add('text-gray-400', 'hover:bg-gray-800');
+                    btn.classList.remove('active');
                 }
             });
         }
@@ -906,14 +920,7 @@
             }
         }
 
-        function startEngine() {
-            fetch('/api/control/start', { method: 'POST' });
-            
-            isEngineRunning = true;
-            document.getElementById('startEngineBtn').classList.add('hidden');
-            document.getElementById('pauseEngineBtn').classList.remove('hidden');
-            document.getElementById('engineStatusText').innerHTML = `<span class="text-emerald-400 font-bold">Engine is RUNNING.</span>`;
-        }
+
 
         function pauseEngine() {
             const pauseBtn = document.getElementById('pauseEngineBtn');
@@ -939,6 +946,74 @@
                 pauseBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
                 pauseBtn.classList.add('bg-yellow-600', 'hover:bg-yellow-500');
                 statusText.innerHTML = `<span class="text-emerald-400 font-bold">Engine is RUNNING.</span>`;
+            }
+        }
+
+        // --- Start Engine Modal Functions ---
+        function showStartModal() {
+            document.getElementById('startModal').classList.remove('hidden');
+            document.getElementById('startModal').classList.add('flex');
+        }
+        
+        function closeStartModal() {
+            document.getElementById('startModal').classList.add('hidden');
+            document.getElementById('startModal').classList.remove('flex');
+        }
+        
+        async function startEngine(mode) {
+            closeStartModal();
+            
+            const isPaper = mode === 'paper';
+            const modeText = isPaper ? 'PAPER TRADING' : 'LIVE TRADING';
+            
+            // Show confirmation
+            if (!isPaper) {
+                const confirmed = confirm('⚠️ LIVE TRADING MODE ⚠️\n\nThis will execute real trades with real funds. Are you sure you want to continue?');
+                if (!confirmed) return;
+            }
+            
+            // Update UI
+            const statusText = document.getElementById('engineStatusText');
+            statusText.innerHTML = `<span class="text-yellow-400 font-bold">Starting ${modeText}...</span>`;
+            
+            try {
+                const response = await fetch('/api/control/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    isEngineRunning = true;
+                    
+                    // Update button
+                    const startBtn = document.getElementById('startEngineBtn');
+                    startBtn.classList.add('hidden');
+                    
+                    const pauseBtn = document.getElementById('pauseEngineBtn');
+                    pauseBtn.classList.remove('hidden');
+                    pauseBtn.classList.add('flex');
+                    
+                    // Update status
+                    if (isPaper) {
+                        document.getElementById('paperTradingBanner').classList.remove('hidden');
+                        statusText.innerHTML = `<span class="text-blue-400 font-bold">Engine running in PAPER TRADING mode.</span>`;
+                    } else {
+                        document.getElementById('paperTradingBanner').classList.add('hidden');
+                        statusText.innerHTML = `<span class="text-emerald-400 font-bold">Engine running in LIVE TRADING mode!</span>`;
+                    }
+                    
+                    alert(`✅ ${modeText} started successfully!`);
+                } else {
+                    alert('❌ Failed to start engine: ' + (data.message || 'Unknown error'));
+                    statusText.innerHTML = `<span class="text-red-400 font-bold">Failed to start engine.</span>`;
+                }
+            } catch (error) {
+                console.error('Start engine error:', error);
+                alert('❌ Error starting engine: ' + error.message);
+                statusText.innerHTML = `<span class="text-red-400 font-bold">Error starting engine.</span>`;
             }
         }
 
@@ -973,6 +1048,42 @@
     </script>
     <style>
 
+
+    <!-- Start Engine Modal -->
+    <div id="startModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h2 class="text-2xl font-bold text-white mb-4">Select Trading Mode</h2>
+            <p class="text-gray-400 mb-6">Choose how you want to run the trading engine:</p>
+            
+            <div class="space-y-3">
+                <button onclick="startEngine('paper')" class="w-full p-4 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold flex items-center justify-between transition-colors">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        <div class="text-left">
+                            <div class="font-bold">Paper Trading</div>
+                            <div class="text-xs text-blue-200 font-normal">Simulate trades without real funds</div>
+                        </div>
+                    </div>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+                
+                <button onclick="startEngine('live')" class="w-full p-4 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-white font-bold flex items-center justify-between transition-colors">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        <div class="text-left">
+                            <div class="font-bold">Live Trading</div>
+                            <div class="text-xs text-emerald-200 font-normal">Execute with real funds - HIGH RISK</div>
+                        </div>
+                    </div>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                </button>
+            </div>
+            
+            <button onclick="closeStartModal()" class="mt-4 w-full py-2 text-gray-400 hover:text-white transition-colors">
+                Cancel
+            </button>
+        </div>
+    </div>
 
     </style>
 </body>

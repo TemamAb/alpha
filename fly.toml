@@ -1,7 +1,8 @@
 # AlphaMark Fly.io Configuration
 # Deploy to fly.io for cloud hosting
+# App runs in LIVE TRADING MODE by default
 
-app = "alphamark"
+app = "alpha"
 primary_region = "iad"
 
 [build]
@@ -9,6 +10,11 @@ primary_region = "iad"
 
 [env]
   PYTHONUNBUFFERED = "1"
+  # LIVE TRADING MODE - Default is false (LIVE mode)
+  # Set to "true" for paper trading only
+  PAPER_TRADING_MODE = "false"
+  # Default chain for arbitrage
+  DEFAULT_CHAIN = "ethereum"
 
 [deploy]
   release_command = "python execution_bot/scripts/bot.py"
@@ -46,3 +52,7 @@ primary_region = "iad"
   auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
+
+# Secrets for production deployment
+# Set these via: fly secrets set PRIVATE_KEY=xxx PIMLICO_API_KEY=xxx etc.
+# Or use .env file with: fly deploy --env-file=.env
