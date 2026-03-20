@@ -1,0 +1,52 @@
+{
+  "ethereum": {
+    "rpc": "http://host.docker.internal:8545",
+    "ws": "ws://host.docker.internal:8546",
+    "chain_id": 1,
+    "lending_pool": "0x87870Bca3F3fD6335C3F4c8392D7A5D3f4c4C5E",
+    "dexes": {
+      "uniswap_v2": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+      "uniswap_v3": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+      "sushiswap": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+    },
+    "weth_address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "router_dex": "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D",
+    "tokens": {
+      "USDC": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "WETH": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+      "DAI": "0x6B175474E89094C44Da98b954E5aaD13AD9E"
+    }
+  },
+  "polygon": {
+    "rpc": "http://host.docker.internal:8547",
+    "ws": "ws://host.docker.internal:8548",
+    "chain_id": 137,
+    "lending_pool": "0x794a61358D6845594F94dc1DB02A252b5b4814aD",
+    "dexes": {
+      "quickswap": "0xa5E0829CaCEd8fFDD4De3c43696c57F7d7A678ff",
+      "sushiswap": "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"
+    },
+    "weth_address": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+    "router_dex": "0xa5E0829CaCEd8fFDD4De3c43696c57F7d7A678ff",
+    "tokens": {
+      "USDC": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "WMATIC": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"
+    }
+  },
+  "bsc": {
+    "rpc": "http://host.docker.internal:8549",
+    "ws": "ws://host.docker.internal:8550",
+    "chain_id": 56,
+    "lending_pool": "0x4F628a66Db8a0537D7147bC8Db7d8EA1F5Aa6f6",
+    "dexes": {
+      "pancakeswap_v2": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+      "biswap": "0x3fC13D266e01AF74a7E8e6a34D5B0f5a5fAaCa5b"
+    },
+    "weth_address": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "router_dex": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+    "tokens": {
+      "USDC": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+      "WBNB": "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
+    }
+  }
+}

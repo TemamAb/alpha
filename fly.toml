@@ -1,0 +1,48 @@
+# AlphaMark Fly.io Configuration
+# Deploy to fly.io for cloud hosting
+
+app = "alphamark"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.bot"
+
+[env]
+  PYTHONUNBUFFERED = "1"
+
+[deploy]
+  release_command = "python execution_bot/scripts/bot.py"
+  wait_timeout = "60s"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 3000
+    handlers = ["http"]
+
+  [services.health_check]
+    path = "/api/health"
+    interval = 30
+    timeout = 10
+    grace_period = 5
+
+[metrics]
+  port = 9090
+  path = "/metrics"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+[experimental]
+  allowed_public_ports = []
+
+[http_service]
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
