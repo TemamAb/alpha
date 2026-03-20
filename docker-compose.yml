@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  redis:
+    container_name: alphamark-redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - alphamark-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  dashboard:
+    container_name: alphamark-dashboard
+    build:
+      context: ./monitoring_dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - alphamark-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  bot:
+    container_name: alphamark-bot
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PYTHONUNBUFFERED=1
+      - DASHBOARD_URL=http://dashboard:3000
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      dashboard:
+        condition: service_healthy
+    networks:
+      - alphamark-net
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+networks:
+  alphamark-net:
+    driver: bridge
+
+volumes:
+  redis_data:
