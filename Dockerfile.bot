@@ -37,6 +37,10 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
 
+# Production defaults - LIVE TRADING MODE by default
+# Set to "true" for paper trading simulation only
+ENV PAPER_TRADING_MODE=false
+
 # Create non-root user for security
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
@@ -45,5 +49,5 @@ USER botuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import sys; sys.exit(0)" || exit 1
 
-# Run the bot
+# Run the bot - starts in LIVE TRADING MODE by default
 CMD ["python", "execution_bot/scripts/bot.py"]

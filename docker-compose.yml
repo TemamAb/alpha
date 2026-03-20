@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   redis:
-    container_name: alphamark-redis
+    container_name: alpha-redis
     image: redis:7-alpine
     ports:
       - "6379:6379"
@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
 
   dashboard:
-    container_name: alphamark-dashboard
+    container_name: alpha-dashboard
     build:
       context: ./monitoring_dashboard
       dockerfile: Dockerfile
@@ -43,7 +43,7 @@ services:
       retries: 3
 
   bot:
-    container_name: alphamark-bot
+    container_name: alpha-bot
     build:
       context: .
       dockerfile: Dockerfile.bot

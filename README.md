@@ -61,11 +61,12 @@ AlphaMark is a distributed arbitrage system composed of multiple microservices:
 - **Multi-hop Arbitrage**: Execute complex arbitrage paths across multiple DEXes
 - **Cross-chain Support**: Ethereum, Polygon, BSC, Arbitrum, Optimism
 - **Flash Loans**: Aave V3 integration for capital-efficient trading
-- **Real-time Monitoring**: Live dashboard with profit tracking
+- **Real-time Monitoring**: Professional dashboard with profit tracking
 - **Risk Management**: Liquidity checks, slippage protection, profit thresholds
 - **MEV Protection**: Optional private mempool submission
 - **Gas Optimization**: EIP-1559 support with predictive gas pricing
 - **Paper Trading**: Test strategies without real funds
+- **AI Copilot**: GPT-4 powered trading assistant
 
 ---
 
@@ -84,8 +85,8 @@ AlphaMark is a distributed arbitrage system composed of multiple microservices:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/TemamAb/alphamark.git
-cd alphamark
+git clone https://github.com/TemamAb/alpha.git
+cd alpha
 ```
 
 ### 2. Configure Environment
@@ -179,6 +180,8 @@ docker-compose up -d --scale bot=3
 
 ### Fly.io Deployment
 
+**The app runs in LIVE TRADING MODE by default when deployed to fly.io.**
+
 ```bash
 # Install flyctl
 curl -L https://fly.io/install.sh | sh
@@ -186,12 +189,25 @@ curl -L https://fly.io/install.sh | sh
 # Login to Fly.io
 fly auth login
 
+# Set required secrets
+fly secrets set PRIVATE_KEY=your_private_key
+fly secrets set PIMLICO_API_KEY=your_pimlico_key
+fly secrets set WALLET_ADDRESS=your_wallet_address
+
 # Launch the app
 fly launch
 
 # Deploy
 fly deploy
+
+# View logs
+fly logs
 ```
+
+**Important:**
+- The bot starts in **LIVE TRADING MODE** by default (`PAPER_TRADING_MODE=false`)
+- To switch to paper trading, set the environment variable: `fly secrets set PAPER_TRADING_MODE=true`
+- Gasless transactions are enabled via Pimlico by default
 
 ### Manual Deployment
 
@@ -221,6 +237,7 @@ cd monitoring_dashboard && npm start
 - **Wallet Management**: Add/remove trading wallets
 - **System Health**: CPU, Memory, Network status
 - **Alpha-Copilot**: AI-powered trading assistant
+- **Engine Control**: Start/Stop/Pause trading engine
 
 ### API Endpoints
 
@@ -272,7 +289,7 @@ npm test
 ### Project Structure
 
 ```
-alphamark/
+alpha/
 ├── smart_contracts/       # Solidity contracts
 │   └── FlashLoan.sol
 ├── strategy_engine/       # Arbitrage strategy engine
