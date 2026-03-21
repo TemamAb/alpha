@@ -21,8 +21,8 @@
 2. [x] Risk gates live
 3. [x] Final Code Audit (Verified: Persistent I/O, Dynamic Slippage, Concurrency)
 4. [👉] **EXECUTING:** `fly deploy` (AUTHORIZED - PROCEEDING)
-5. [ ] Certified operational + profits
-6. [ ] Monitor 'professional-dashboard.html' for first trade
+5. [👉] Certified operational + profits (Monitoring Logs)
+6. [👉] Monitor 'professional-dashboard.html' for first trade
 
 **Infrastructure Ready:**
 - Testnet deployment scripts configured
