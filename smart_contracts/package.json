@@ -11,6 +11,10 @@
     "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
     "deploy:bsctest": "hardhat run scripts/deploy.js --network bscTestnet",
     "deploy:testnets": "npm run deploy:sepolia && npm run deploy:amoy && npm run deploy:bsctest",
+    "deploy:ethereum": "hardhat run scripts/deploy.js --network ethereum",
+    "deploy:polygon": "hardhat run scripts/deploy.js --network polygon",
+    "deploy:bsc": "hardhat run scripts/deploy.js --network bsc",
+    "deploy:mainnets": "npm run deploy:ethereum && npm run deploy:polygon && npm run deploy:bsc",
     "test": "hardhat test"
   },
   "devDependencies": {

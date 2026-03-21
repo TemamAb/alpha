@@ -21,7 +21,7 @@ services:
   dashboard:
     container_name: alpha-dashboard
     build:
-      context: ./monitoring_dashboard
+      context: ./frontend
       dockerfile: Dockerfile
     ports:
       - "3000:3000"

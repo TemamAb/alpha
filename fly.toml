@@ -2,7 +2,8 @@ app = "alphamark-arbitrage"
 primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = "frontend/Dockerfile"
+  context = "frontend"
 
 [env]
   # CRITICAL: Set to "false" for Live Trading on Deployment
