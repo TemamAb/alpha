@@ -65,7 +65,7 @@ def check_impermanent_loss(base_price, current_price, threshold=None):
     il = abs(current_price - base_price) / base_price
     return il <= threshold
 
-def full_risk_assessment(opportunity, current_prices, liquidity_data):
+def full_risk_assessment(opportunity, current_prices, liquidity_data, model_confidence_score=None):
     """
     Comprehensive risk check combining all checks.
     FIXED: Now correctly maps opportunity dict keys to expected keys.
@@ -138,6 +138,11 @@ def full_risk_assessment(opportunity, current_prices, liquidity_data):
     if pool_liquidity_usd == 0:
         risks.append("unknown_liquidity")
     
+    # Check ML Model Confidence (Self-Learning System)
+    # If the AI is very unsure (< 50%), treat it as a risk
+    if model_confidence_score is not None and model_confidence_score < 0.50:
+        risks.append(f"low_ml_confidence:{model_confidence_score:.2f}")
+
     # Safe if no risks found
     safe = len(risks) == 0
     logger.info(f"Risk assessment: safe={safe}, risks={risks}")

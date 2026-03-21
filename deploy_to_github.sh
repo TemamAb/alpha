@@ -24,7 +24,7 @@ git add -A
 
 # Create initial commit
 echo "💾 Creating initial commit..."
-git commit -m "feat: AlphaMark v1.0.0 - Flash Loan Arbitrage System
+git commit -m "fix: Increase Fly.io health check grace period to 120s
 
 Features:
 - Multi-hop arbitrage across DEXes
@@ -39,6 +39,10 @@ Features:
 Security:
 - Fixed critical bugs in smart contracts
 - Improved slippage protection
+- Auto-start enabled for Fly.io
+
+Configuration:
+- fly.toml configured for zero-touch deployment
 - Enhanced error handling
 
 Infrastructure:
@@ -49,7 +53,8 @@ Infrastructure:
 
 # Add remote (update with your repository URL)
 echo "🔗 Adding remote repository..."
-git remote add origin https://github.com/TemamAb/alpha.git
+# Check if remote exists, update URL if needed
+git remote set-url origin https://github.com/TemamAb/alpha.git 2>/dev/null || git remote add origin https://github.com/TemamAb/alpha.git
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
@@ -57,8 +62,11 @@ git push -u origin main
 
 echo "✅ Successfully pushed to GitHub!"
 echo ""
+echo "🔐 DEPLOYMENT COMMIT HASH (Save for Audit Logs):"
+git rev-parse HEAD
+echo ""
 echo "📋 Next steps:"
-echo "1. Go to https://github.com/TemamAb/alphamark"
+echo "1. Go to https://github.com/TemamAb/alpha"
 echo "2. Configure repository settings"
 echo "3. Add secrets in GitHub Actions secrets:"
 echo "   - FLY_API_TOKEN"

@@ -65,18 +65,30 @@ AlphaMark is a distributed arbitrage system composed of multiple microservices:
 - **Risk Management**: Liquidity checks, slippage protection, profit thresholds
 - **MEV Protection**: Optional private mempool submission
 - **Gas Optimization**: EIP-1559 support with predictive gas pricing
+- **Auto-Optimization Engine**: Dynamically adjusts scanning intervals based on market volatility and opportunity flow.
+- **Self-Learning System**: Integrates a feedback loop to learn from trade outcomes, continuously improving risk assessment and profitability.
 - **Paper Trading**: Test strategies without real funds
 - **AI Copilot**: GPT-4 powered trading assistant
 
 ---
+
+## 🚨 PRODUCTION WARNING ⚠️
+
+**LIVE TRADING DEFAULT!** Bot starts trading **REAL FUNDS** unless `PAPER_TRADING_MODE=true`.
+
+**Mandatory Steps Before Any Deploy:**
+1. `.cp .env.example .env` → Fill **ALL** keys (RPCs, keys, contract addr)
+2. Deploy `smart_contracts/FlashLoan.sol` → Testnet → Update `.env`
+3. `docker-compose up` → Verify dashboard + paper trading
+4. Testnet success → Mainnet RPCs → `PAPER_TRADING_MODE=false`
 
 ## 🔧 Prerequisites
 
 - Docker & Docker Compose
 - Python 3.11+
 - Node.js 18+
-- Ethereum RPC endpoint (Alchemy/Infura)
-- Redis (included in Docker Compose)
+- Ethereum RPC (Alchemy/Infura Free)
+- Redis (Dockerized)
 
 ---
 

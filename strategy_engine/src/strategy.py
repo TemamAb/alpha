@@ -189,8 +189,7 @@ def find_graph_arbitrage_opportunities(chain_name, chain_data, max_hops=3):
     # Start DFS from Base Token
     dfs_find_cycles([weth], {weth}, 1)
     
-    # Limit total paths to check per scan to avoid RPC timeouts
-    if len(paths_to_check) > MAX_SEARCH_PATHS:
+
         paths_to_check = paths_to_check[:MAX_SEARCH_PATHS]
 
     loan_amount_eth = 1.0 # Simulate with 1 ETH flashloan
