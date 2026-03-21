@@ -32,7 +32,8 @@ module.exports = {
     // Testnet Networks for Phase 2 Paper Trading
     sepolia: {
       url: "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
-      chainId: 11155111,\n      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
+      chainId: 11155111,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
       verify: {
         etherscan: {
           apiKey: process.env.ETHERSCAN_API_KEY
@@ -41,7 +42,8 @@ module.exports = {
     },
     amoy: {
       url: "https://rpc-amoy.polygon.technology",
-      chainId: 80002,\n      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
+      chainId: 80002,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
       verify: {
         etherscan: {
           apiKey: process.env.POLYGONSCAN_API_KEY
@@ -50,9 +52,25 @@ module.exports = {
     },
     bscTestnet: {
       url: "https://data-seed-prebsc-1-s1.binance.org:8545",
-      chainId: 97,\n      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"]
+      chainId: 97,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"]
+    },
+    // Mainnet Networks for Phase 3 Live Trading
+    ethereum: {
+      url: process.env.ETHEREUM_RPC || "https://eth-mainnet.g.alchemy.com/v2/demo",
+      chainId: 1,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    polygon: {
+      url: process.env.POLYGON_RPC || "https://polygon-mainnet.g.alchemy.com/v2/demo",
+      chainId: 137,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    bsc: {
+      url: process.env.BSC_RPC || "https://bsc-dataseed1.binance.org",
+      chainId: 56,
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     }
-    // mumbai disabled for local simulation
   },
   paths: {
     sources: "./contracts",

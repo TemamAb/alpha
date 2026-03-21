@@ -100,7 +100,7 @@
     }
   },
   "paper_trading": {
-    "mode": true,
+    "mode": false,
     "networks": ["ethereum_sepolia", "polygon_amoy", "bsc_testnet"]
   }
 }

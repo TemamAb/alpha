@@ -26,7 +26,7 @@ fi
 
 # Install Node dependencies if needed
 echo -e "${YELLOW}Installing Node.js dependencies...${NC}"
-cd monitoring_dashboard
+cd frontend
 npm install
 cd ..
 
@@ -40,7 +40,7 @@ echo ""
 
 # Start dashboard server in background
 echo -e "${YELLOW}[1/2] Starting Dashboard Server on port 3000...${NC}"
-node monitoring_dashboard/server-dashboard.js &
+node frontend/server-dashboard.js &
 DASHBOARD_PID=$!
 echo -e "${GREEN}Dashboard started (PID: $DASHBOARD_PID)${NC}"
 

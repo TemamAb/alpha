@@ -122,12 +122,22 @@ def get_w3_session():
     return session
 
 def get_rpc(chain):
+    # Check environment variables first for production security
+    env_rpc = os.environ.get(f"{chain.upper()}_RPC")
+    if env_rpc:
+        return env_rpc
+
     # Check cache first for instant access
     if chain in _W3_CACHE:
         return _W3_CACHE[chain]['rpc']
     
     if chain in CONFIG:
         rpcs = []
+        # Support rpc_production for live mode
+        is_paper = os.environ.get("PAPER_TRADING_MODE", "true").lower() == "true"
+        if not is_paper and CONFIG[chain].get('rpc_production'):
+            rpcs.append(CONFIG[chain]['rpc_production'])
+            
         main = CONFIG[chain].get('rpc')
         fb = CONFIG[chain].get('rpc_fallback')
         if main:
@@ -135,6 +145,7 @@ def get_rpc(chain):
         if fb:
             rpcs.append(fb)
         for rpc in rpcs:
+            if "YOUR_KEY" in rpc or "YOUR_PROJECT_ID" in rpc: continue
             try:
                 # Use persistent session provider
                 provider = Web3.HTTPProvider(rpc, session=get_w3_session(), request_kwargs={'timeout': 5})
