@@ -56,6 +56,10 @@ echo "🔗 Adding remote repository..."
 # Check if remote exists, update URL if needed
 git remote set-url origin https://github.com/TemamAb/alpha.git 2>/dev/null || git remote add origin https://github.com/TemamAb/alpha.git
 
+# Pull remote changes before pushing to resolve divergence
+echo "🔄 Syncing with remote repository..."
+git pull --rebase origin main
+
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
 git push -u origin main

@@ -14,6 +14,20 @@ This document contains standard operating procedures (SOPs) for managing the Alp
 
 ---
 
+## 0. Prerequisites
+
+### 0.1. Install Fly.io CLI (`flyctl`)
+
+Before running any `fly` commands, you must have the command-line tool installed.
+
+```bash
+# Run this command once to install flyctl
+curl -L https://fly.io/install.sh | sh
+```
+**Note:** After installation, you may need to restart your terminal or add the `flyctl` directory to your system's PATH. The installer script provides instructions.
+
+---
+
 ## 1. Routine Health Checks
 
 Perform these checks daily or after any deployment.
@@ -44,6 +58,18 @@ curl "https://${APP_URL}/api/health"
 
 **Expected Outcome:**
 A JSON response with `{"status":"ok", "engine":"RUNNING", ...}`. If the engine status is `STOPPED` or `PAUSED`, it should match the intended state. A `503` error indicates a critical failure (e.g., Redis is down or the bot process is unresponsive).
+
+### 1.3. Verify Profit Generation (Audit)
+
+Filter the live logs for the specific cryptographic signature of a successful trade.
+
+```bash
+# Search for the "Success" signature in logs
+fly logs | grep "✅ Arb submitted"
+```
+
+**Expected Outcome:**
+Log lines like: `✅ Arb submitted! Profit: 0.045 ETH. Hash: 0x123...`
 
 ---
 

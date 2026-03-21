@@ -32,8 +32,7 @@ module.exports = {
     // Testnet Networks for Phase 2 Paper Trading
     sepolia: {
       url: "https://sepolia.infura.io/v3/YOUR_INFURA_KEY",
-      chainId: 11155111,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : { mnemonic: process.env.MNEMONIC },
+      chainId: 11155111,\n      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
       verify: {
         etherscan: {
           apiKey: process.env.ETHERSCAN_API_KEY
@@ -42,8 +41,7 @@ module.exports = {
     },
     amoy: {
       url: "https://rpc-amoy.polygon.technology",
-      chainId: 80002,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : { mnemonic: process.env.MNEMONIC },
+      chainId: 80002,\n      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
       verify: {
         etherscan: {
           apiKey: process.env.POLYGONSCAN_API_KEY
@@ -52,8 +50,7 @@ module.exports = {
     },
     bscTestnet: {
       url: "https://data-seed-prebsc-1-s1.binance.org:8545",
-      chainId: 97,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : { mnemonic: process.env.MNEMONIC }
+      chainId: 97,\n      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"]
     }
     // mumbai disabled for local simulation
   },
