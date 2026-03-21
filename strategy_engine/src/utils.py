@@ -16,10 +16,14 @@ config_path = os.path.join(PROJECT_ROOT, 'config_asset_registry', 'data', 'contr
 # This is a fallback value for simulation only.
 ETH_USD = 3000.0
 
-def get_live_eth_price():
+def get_live_eth_price(chain=None):
     """
     Fetches live ETH price from external API (Coinbase).
+    Local sim override.
     """
+    if chain and 'local' in chain.lower():
+        return 3000.0  # Sim price for local demo
+    
     try:
         response = requests.get("https://api.coinbase.com/v2/prices/ETH-USD/spot", timeout=5)
         if response.status_code == 200:

@@ -1,58 +1,27 @@
-# AlphaMark Fly.io Configuration
-# Deploy to fly.io for cloud hosting
-# App runs in LIVE TRADING MODE by default
-
-app = "alpha"
+app = "alphamark-arbitrage"
 primary_region = "iad"
 
 [build]
-  dockerfile = "Dockerfile.bot"
+  dockerfile = "Dockerfile"
 
 [env]
-  PYTHONUNBUFFERED = "1"
-  # LIVE TRADING MODE - Default is false (LIVE mode)
-  # Set to "true" for paper trading only
+  # CRITICAL: Set to "false" for Live Trading on Deployment
   PAPER_TRADING_MODE = "false"
-  # Default chain for arbitrage
-  DEFAULT_CHAIN = "ethereum"
-
-[deploy]
-  release_command = "python execution_bot/scripts/bot.py"
-  wait_timeout = "60s"
-
-[[services]]
-  protocol = "tcp"
-  internal_port = 3000
-  processes = ["app"]
-
-  [[services.ports]]
-    port = 3000
-    handlers = ["http"]
-
-  [services.health_check]
-    path = "/api/health"
-    interval = 30
-    timeout = 10
-    grace_period = 5
-
-[metrics]
-  port = 9090
-  path = "/metrics"
-
-[[vm]]
-  size = "shared-cpu-1x"
-  cpu_kind = "shared"
-  cpus = 1
-  memory_mb = 512
-
-[experimental]
-  allowed_public_ports = []
+  NODE_ENV = "production"
+  MAX_SLIPPAGE = "0.005"
 
 [http_service]
+  internal_port = 3000
+  force_https = true
   auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
+  processes = ["app"]
 
-# Secrets for production deployment
-# Set these via: fly secrets set PRIVATE_KEY=xxx PIMLICO_API_KEY=xxx etc.
-# Or use .env file with: fly deploy --env-file=.env
+[[http_service.checks]]
+  grace_period = "120s"
+  interval = "15s"
+  method = "get"
+  path = "/api/health"
+  protocol = "http"
+  timeout = "10s"

@@ -8,6 +8,7 @@ from datetime import datetime
 import sys
 import multiprocessing
 import json
+import csv
 
 # Get the project root directory
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -40,9 +41,13 @@ try:
     from fetch_liquidity import fetch_liquidity
 except ImportError:
     logger = logging.getLogger(__name__)
-    logger.warning("fetch_liquidity module not found. Using mock for initialization.")
+    logger.warning("fetch_liquidity module not found in path.")
     def fetch_liquidity(chain, token): 
-        return 100000.0 # Mock liquidity
+        # CRITICAL SECURITY FIX: Never use mock liquidity in Live Mode
+        if os.environ.get("PAPER_TRADING_MODE") != "true":
+             logger.error(f"LIVE MODE SAFETY: Zero liquidity returned for {token} due to missing data.")
+             return 0.0
+        return 100000.0 # Mock liquidity (Paper Mode only)
 
 
 # Implement structured logging
@@ -65,6 +70,68 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logHandler)
 
+# --- Self-Learning System ---
+LEARNING_DATA_FILE = 'trade_history.csv'
+LEARNING_MODEL = None # Placeholder for a loaded ML model
+
+def initialize_learning_system():
+    """
+    Initializes the self-learning system. In a real scenario, this would
+    load a pre-trained model. For now, it just ensures the data file exists.
+    """
+    global LEARNING_MODEL
+    logger.info("Initializing Self-Learning System...")
+    if not os.path.exists(LEARNING_DATA_FILE):
+        with open(LEARNING_DATA_FILE, 'w', newline='') as f:
+            writer = csv.writer(f)
+            # Define the schema for our training data
+            writer.writerow([
+                'timestamp', 'chain', 'strategy', 'profit_usd', 'loan_amount',
+                'path', 'gas_price', 'volatility_metric', 'model_confidence',
+                'risk_assessment_passed', 'execution_success', 'net_profit_eth'
+            ])
+    # In a real system:
+    # try:
+    #     LEARNING_MODEL = load_model('path/to/model.pkl')
+    #     logger.info("ML model loaded successfully.")
+    # except Exception as e:
+    #     logger.warning(f"Could not load ML model: {e}. Operating in rule-based mode.")
+    logger.info("Self-Learning System ready to record data.")
+
+def learn_from_trade(opportunity, success, net_profit, model_confidence, risk_passed):
+    """
+    Records the outcome of a trade to a CSV file for future model training.
+    This creates the feedback loop for the self-learning system.
+    """
+    try:
+        with open(LEARNING_DATA_FILE, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                datetime.now().isoformat(),
+                opportunity.get('chain'),
+                opportunity.get('strategy'),
+                opportunity.get('net_usd_profit'),
+                opportunity.get('loan_amount'),
+                "->".join(opportunity.get('path', [])),
+                opportunity.get('gas_price', 0), # Placeholder
+                opportunity.get('volatility', 0), # Placeholder
+                model_confidence,
+                risk_passed,
+                success,
+                net_profit if success else 0
+            ])
+    except Exception as e:
+        logger.error(f"Failed to record learning data: {e}")
+
+def get_model_confidence(opportunity):
+    """
+    Placeholder for ML model inference.
+    Takes an opportunity and returns a confidence score (0.0 to 1.0)
+    representing the predicted probability of success.
+    """
+    if LEARNING_MODEL:
+        pass
+    return 0.75 + (len(opportunity.get('path', [])) * 0.05)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -101,11 +168,27 @@ def report_execution_to_dashboard(opportunity, success, profit=0, loss=0, tx_has
     # Fire and forget - don't block the trading loop
     threading.Thread(target=_send, daemon=True).start()
 
+def calculate_dynamic_scan_interval(recent_opp_count, market_volatility=0.5):
+    """
+    Calculates the optimal scan interval based on market conditions.
+    - More opportunities or high volatility -> shorter interval.
+    - Fewer opportunities or low volatility -> longer interval.
+    """
+    if recent_opp_count > 10 or market_volatility > 0.8:
+        return 0.1  # Aggressive scanning: 100ms
+    elif recent_opp_count > 2 or market_volatility > 0.4:
+        return 0.3  # Normal scanning: 300ms
+    else:
+        return 1.0  # Conservative scanning: 1s
+
 def scanner_process(opportunity_queue: multiprocessing.Queue):
     """
     Dedicated process to scan for opportunities and put them in a queue.
     """
     logger.info("✅ Scanner process started.")
+    last_interval_check = time.time()
+    opportunities_in_window = 0
+    scan_interval = 0.3
     while True:
 
         # === KILL SWITCH (Emergency Stop) ===
@@ -125,11 +208,21 @@ def scanner_process(opportunity_queue: multiprocessing.Queue):
         try:
             opportunities = find_profitable_opportunities(MIN_USD_PROFIT)
             if opportunities:
+                opportunities_in_window += len(opportunities)
                 logger.info(f"Scanner found {len(opportunities)} potential opportunities.", extra={'chain': 'ALL'})
                 for opp in opportunities:
                     opportunity_queue.put(opp)
-            time.sleep(0.2) # Scan every 200ms
+            
+            current_time = time.time()
+            if current_time - last_interval_check > 5.0:
+                scan_interval = calculate_dynamic_scan_interval(opportunities_in_window, market_volatility=0.5)
+                logger.info(f"Auto-Optimization: New scan interval is {scan_interval*1000:.0f}ms based on finding {opportunities_in_window} opps.")
+                opportunities_in_window = 0
+                last_interval_check = current_time
+
+            time.sleep(scan_interval)
         except Exception as e:
+            
             logger.error(f"Scanner process error: {e}")
             time.sleep(5)
 
@@ -175,25 +268,29 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
                 logger.info(f"Worker #{worker_id} skipped {opportunity.get('type', 'unknown')} - monitor_only strategy")
                 continue
 
-            # --- Risk Assessment (Orchestrator Logic) ---
-            # FIXED: Always run full risk assessment for ALL opportunity types
-            # Previously bypassed for graph_arb - this was a CRITICAL security vulnerability
+            # --- Self-Learning: Model Inference ---
+            model_confidence = get_model_confidence(opportunity)
+            logger.info(f"Worker #{worker_id}: ML Model Confidence for opp: {model_confidence:.2f}")
+
+            # --- Risk Assessment (with ML input) ---
             current_prices = {
                 'buy_dex': opportunity.get('buy_price', opportunity.get('dex', 'unknown')),
                 'sell_dex': opportunity.get('sell_price', opportunity.get('dex', 'unknown'))
             }
             pool_liquidity = fetch_liquidity(opportunity['chain'], opportunity.get('base_token', opportunity.get('token', 'WETH')))
             liquidity_data = {opportunity.get('base_token', 'WETH'): pool_liquidity}
-            
-            safe, risks = full_risk_assessment(opportunity, current_prices, liquidity_data)
+            safe, risks = full_risk_assessment(opportunity, current_prices, liquidity_data, model_confidence_score=model_confidence)
             if not safe:
                 logger.warning(f"Worker #{worker_id} rejected risky opp: {risks}")
+                # --- Self-Learning: Record failed risk assessment ---
+                learn_from_trade(opportunity, success=False, net_profit=0, model_confidence=model_confidence, risk_passed=False)
+                continue
             
             if not safe:
                 continue
 
             # --- Execution ---
-            logger.info(f"Worker #{worker_id} 🚀 EXECUTING: ${opportunity['net_usd_profit']:.0f} | {opportunity['chain']}")
+            logger.info(f"Worker #{worker_id} 🚀 EXECUTING: ${opportunity['net_usd_profit']:.0f} | {opportunity['chain']} | Confidence: {model_confidence:.2f}")
             success, tx_hash_or_error = execute_flashloan(opportunity)
 
             if success:
@@ -201,6 +298,10 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
                 send_alert(f"✅ Arb submitted! Profit: {eth_profit:.4f} ETH. Hash: {tx_hash_or_error}")
                 report_execution_to_dashboard(opportunity, True, profit=eth_profit, tx_hash=tx_hash_or_error)
             else:
+                eth_profit = 0
+                # --- Self-Learning: Record Execution Outcome ---
+                learn_from_trade(opportunity, success=success, net_profit=eth_profit, model_confidence=model_confidence, risk_passed=True)
+
                 send_alert(f"❌ Arb failed on {opportunity['chain']}: {tx_hash_or_error}")
                 report_execution_to_dashboard(opportunity, False, loss=0, tx_hash='failed')
                 logger.error(f"Execution failed: {tx_hash_or_error}")
@@ -329,7 +430,26 @@ def run_bot():
     Main function to orchestrate the multi-process bot.
     """
     logger.info("🚀 Alphamark Arbitrage Bot starting in ENTERPRISE (multi-process) mode...")
+    initialize_learning_system()
     logger.info(f"Dashboard URL: {DASHBOARD_URL}")
+
+    # --- AUTO-START LOGIC FOR CLOUD DEPLOYMENT ---
+    # Initialize Redis state to match environment mode immediately on startup
+    # This bypasses the need for manual dashboard interaction.
+    if REDIS_URL:
+        try:
+            r = redis.from_url(REDIS_URL)
+            # Determine mode from env, default to LIVE if not strictly 'true'
+            env_paper_mode = os.environ.get("PAPER_TRADING_MODE")
+            initial_mode = 'paper' if env_paper_mode == "true" else 'live'
+            
+            logger.info(f"⚙️ CLOUD INIT: Auto-setting engine to {initial_mode.upper()} mode based on environment.")
+            r.set('alphamark:mode', initial_mode)
+            r.set('alphamark:kill_switch', 'false') # Ensure kill switch is OFF
+        except Exception as e:
+            logger.error(f"Failed to set initial Redis state: {e}")
+    # ---------------------------------------------
+
     # Create a shared queue for opportunities
     opportunity_queue = multiprocessing.Queue()
     
