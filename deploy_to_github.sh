@@ -24,32 +24,12 @@ git add -A
 
 # Create initial commit
 echo "💾 Creating initial commit..."
-git commit -m "fix: Increase Fly.io health check grace period to 120s
+git commit -m "fix: Resolve critical profit generation blockers
 
-Features:
-- Multi-hop arbitrage across DEXes
-- Aave V3 flash loan integration
-- Real-time monitoring dashboard
-- Cross-chain support (Ethereum, Polygon, BSC, Arbitrum, Optimism)
-- MEV protection
-- Gas optimization
-- Risk management
-- Paper trading mode
-
-Security:
-- Fixed critical bugs in smart contracts
-- Improved slippage protection
-- Auto-start enabled for Fly.io
-
-Configuration:
-- fly.toml configured for zero-touch deployment
-- Enhanced error handling
-
-Infrastructure:
-- Docker containerization
-- Fly.io deployment config
-- CI/CD pipeline
-- Comprehensive documentation"
+- Corrected corrupted DAI token address in contracts.json
+- Added missing factory_address to Ethereum/Polygon/BSC config
+- Fixed OpenAI API key syntax in server-dashboard.js
+- Restored scanner process graph pathfinding" || echo "⚠️ No changes to commit or commit failed. Proceeding..."
 
 # Add remote (update with your repository URL)
 echo "🔗 Adding remote repository..."
