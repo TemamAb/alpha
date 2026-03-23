@@ -1,13 +1,15 @@
 # AlphaMark Monitoring Dashboard Dockerfile
-
 FROM node:18-alpine
 
 WORKDIR /app
 
+# Copy dependency definitions first
+COPY package*.json ./
 
-RUN npm install
+# Install production dependencies
+RUN npm install --production
 
-# Copy application code
+# Copy application code from current directory (the 'frontend' folder)
 COPY . .
 
 # Create non-root user for security
