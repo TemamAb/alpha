@@ -9,8 +9,8 @@ __pycache__/
 dist/
 build/
 
-# Environment - NEVER commit secrets!
-.env
+# Environment - TRACKED FOR RENDER DEPLOYMENT (Commander Directive)
+# WARNING: .env is now inclusionary. Keys are in the repository index.
 .env.local
 .env.production
 .env.*.local
