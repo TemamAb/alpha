@@ -1,0 +1,60 @@
+# AlphaMark - Render Blueprint (Infrastructure as Code)
+# Orchestrates a distributed, high-performance arbitrage ecosystem
+
+services:
+  # 1. Institutional Monitoring Dashboard (Web Service)
+  - type: web
+    name: alphamark-dashboard
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/health
+    startCommand: "node frontend/server-dashboard.js"
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: alpha-redis
+          property: connectionString
+      # Pull other secrets from the Render dashboard (User adds these)
+      - key: DASHBOARD_USER
+        sync: false
+      - key: DASHBOARD_PASS
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+  # 2. High-Frequency Arbitrage Engine (Background Worker)
+  - type: worker
+    name: alphamark-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerContext: .
+    plan: starter
+    startCommand: "python3 execution_bot/scripts/bot.py"
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: alpha-redis
+          property: connectionString
+      - key: PAPER_TRADING_MODE
+        value: "false"
+      # Secure secrets to be added in Render UI
+      - key: PRIVATE_KEY
+        sync: false
+      - key: WALLET_ADDRESS
+        sync: false
+      - key: PIMLICO_API_KEY
+        sync: false
+
+# 3. High-Speed IPC Backbone (Managed Redis)
+redis:
+  name: alpha-redis
+  plan: free
+  ipAllowList: [] # Only allow internal connections for maximum security
