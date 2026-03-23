@@ -38,8 +38,13 @@ echo ""
 echo -e "${GREEN}Starting AlphaMark System...${NC}"
 echo ""
 
+# Start Redis for IPC communication
+echo -e "${YELLOW}[0/3] Starting Redis Server...${NC}"
+redis-server --daemonize yes
+sleep 1
+
 # Start dashboard server in background
-echo -e "${YELLOW}[1/2] Starting Dashboard Server on port 3000...${NC}"
+echo -e "${YELLOW}[1/3] Starting Dashboard Server on port 3000...${NC}"
 node frontend/server-dashboard.js &
 DASHBOARD_PID=$!
 echo -e "${GREEN}Dashboard started (PID: $DASHBOARD_PID)${NC}"
@@ -48,7 +53,7 @@ echo -e "${GREEN}Dashboard started (PID: $DASHBOARD_PID)${NC}"
 sleep 2
 
 # Start arbitrage bot
-echo -e "${YELLOW}[2/2] Starting Arbitrage Bot...${NC}"
+echo -e "${YELLOW}[3/3] Starting Arbitrage Bot...${NC}"
 python3 execution_bot/scripts/bot.py &
 BOT_PID=$!
 echo -e "${GREEN}Bot started (PID: $BOT_PID)${NC}"

@@ -10,6 +10,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
+    redis-server \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Install Node Dependencies (Dashboard)
