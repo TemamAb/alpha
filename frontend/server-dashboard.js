@@ -8,26 +8,21 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const app = express();
 app.use(express.json());
 
-// --- SECURITY: Basic Auth for Production Dashboard ---
-// This ensures that the control board is NOT accessible to the public internet.
+/*
+// --- SECURITY: Basic Auth for Production Dashboard (DISABLED AT USER REQUEST) ---
 const BASIC_USER = process.env.DASHBOARD_USER || 'admin';
 const BASIC_PASS = process.env.DASHBOARD_PASS || 'alpha-secure-2026';
 
 app.use((req, res, next) => {
-    // Skip auth for health checks
     if (req.path === '/api/health') return next();
-
     const auth = { login: BASIC_USER, password: BASIC_PASS };
     const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
     const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':');
-
-    if (login && password && login === auth.login && password === auth.password) {
-        return next();
-    }
-
+    if (login && password && login === auth.login && password === auth.password) return next();
     res.set('WWW-Authenticate', 'Basic realm="AlphaMark | Secured"');
     res.status(401).send('🛡️ ACCESS DENIED: Authentication Required.');
 });
+*/
 
 // Fix: server-dashboard.js is ALREADY inside the 'frontend' directory
 app.use(express.static(__dirname));
