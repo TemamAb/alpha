@@ -9,8 +9,7 @@ __pycache__/
 dist/
 build/
 
-# Environment
-.env
+# Environment - INCLUDED FOR PRODUCTION
 .env.local
 .env.*.local
 
