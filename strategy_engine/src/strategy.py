@@ -189,8 +189,7 @@ def find_graph_arbitrage_opportunities(chain_name, chain_data, max_hops=3):
     # Start DFS from Base Token
     dfs_find_cycles([weth], {weth}, 1)
     
-
-        paths_to_check = paths_to_check[:MAX_SEARCH_PATHS]
+    paths_to_check = paths_to_check[:MAX_SEARCH_PATHS]
 
     loan_amount_eth = 1.0 # Simulate with 1 ETH flashloan
     loan_amount_wei = w3.to_wei(loan_amount_eth, 'ether')

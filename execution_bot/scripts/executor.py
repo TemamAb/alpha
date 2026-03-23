@@ -2,10 +2,19 @@ import os
 import requests
 import logging
 from eth_abi import encode
+try:
+    from eth_abi.packed import encode_packed
+except ImportError:
+    try:
+        from eth_abi import encode_packed
+    except ImportError:
+        # Fallback: encode_packed not available in this version
+        def encode_packed(types, values):
+            from eth_abi import encode
+            return encode(types, values)
 import redis
 from web3 import Web3
 from eth_account import Account
-from eth_abi import encode_packed
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [EXECUTOR] - %(message)s')

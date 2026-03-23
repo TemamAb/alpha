@@ -230,20 +230,21 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
     """
     A worker process that pulls an opportunity from the queue and executes it.
     """
-    logger = logging.LoggerAdapter(logger, {'worker_id': worker_id}) # Add worker_id to logger
-    logger.info(f"✅ Executor worker #{worker_id} started.") # Log structured data
+    _logger = logging.getLogger(f"executor.worker.{worker_id}")
+    _logger.setLevel(logging.INFO)
+    _logger.info(f"✅ Executor worker #{worker_id} started.")
     while True:
 
         # === KILL SWITCH (Emergency Stop) ===
         if os.environ.get("KILL_SWITCH") == "true":
-            logger.critical(f"Worker #{worker_id}: EMERGENCY KILL SWITCH ACTIVATED! Halting executor.")
+            _logger.critical(f"Worker #{worker_id}: EMERGENCY KILL SWITCH ACTIVATED! Halting executor.")
             return # terminate process
 
         if REDIS_URL:
             try:
                 r = redis.from_url(REDIS_URL)
                 if r.get("alphamark:kill_switch") == "true":
-                    logger.critical(f"Worker #{worker_id}: EMERGENCY KILL SWITCH (Redis) ACTIVATED! Halting executor.")
+                    _logger.critical(f"Worker #{worker_id}: EMERGENCY KILL SWITCH (Redis) ACTIVATED! Halting executor.")
                     return # terminate process
                 
                 # Dynamic Mode Synchronization
@@ -255,22 +256,21 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
                     executor.PAPER_TRADING_MODE = (mode_str != 'live')
 
             except Exception as e:
-                logger.error(f"Worker #{worker_id}: Redis kill switch check failed: {e}")
+                _logger.error(f"Worker #{worker_id}: Redis kill switch check failed: {e}")
 
         try:
             opportunity = opportunity_queue.get() # This will block until an item is available
-            logger = logging.LoggerAdapter(logger, {'chain': opportunity.get('chain', 'N/A')})
-            logger.info(f"Worker #{worker_id} picked up opportunity on {opportunity['chain']}.")
+            _logger.info(f"Worker #{worker_id} picked up opportunity on {opportunity['chain']}.")
 
             # --- Monitor-Only Check ---
             # Skip opportunities marked as monitor_only (e.g., cross-chain requires bridge integration)
             if opportunity.get('strategy') == 'monitor_only':
-                logger.info(f"Worker #{worker_id} skipped {opportunity.get('type', 'unknown')} - monitor_only strategy")
+                _logger.info(f"Worker #{worker_id} skipped {opportunity.get('type', 'unknown')} - monitor_only strategy")
                 continue
 
             # --- Self-Learning: Model Inference ---
             model_confidence = get_model_confidence(opportunity)
-            logger.info(f"Worker #{worker_id}: ML Model Confidence for opp: {model_confidence:.2f}")
+            _logger.info(f"Worker #{worker_id}: ML Model Confidence for opp: {model_confidence:.2f}")
 
             # --- Risk Assessment (with ML input) ---
             current_prices = {
@@ -281,7 +281,7 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
             liquidity_data = {opportunity.get('base_token', 'WETH'): pool_liquidity}
             safe, risks = full_risk_assessment(opportunity, current_prices, liquidity_data, model_confidence_score=model_confidence)
             if not safe:
-                logger.warning(f"Worker #{worker_id} rejected risky opp: {risks}")
+                _logger.warning(f"Worker #{worker_id} rejected risky opp: {risks}")
                 # --- Self-Learning: Record failed risk assessment ---
                 learn_from_trade(opportunity, success=False, net_profit=0, model_confidence=model_confidence, risk_passed=False)
                 continue
@@ -290,7 +290,7 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
                 continue
 
             # --- Execution ---
-            logger.info(f"Worker #{worker_id} 🚀 EXECUTING: ${opportunity['net_usd_profit']:.0f} | {opportunity['chain']} | Confidence: {model_confidence:.2f}")
+            _logger.info(f"Worker #{worker_id} 🚀 EXECUTING: ${opportunity['net_usd_profit']:.0f} | {opportunity['chain']} | Confidence: {model_confidence:.2f}")
             success, tx_hash_or_error = execute_flashloan(opportunity)
 
             if success:
@@ -304,10 +304,10 @@ def executor_worker(opportunity_queue: multiprocessing.Queue, worker_id: int):
 
                 send_alert(f"❌ Arb failed on {opportunity['chain']}: {tx_hash_or_error}")
                 report_execution_to_dashboard(opportunity, False, loss=0, tx_hash='failed')
-                logger.error(f"Execution failed: {tx_hash_or_error}")
+                _logger.error(f"Execution failed: {tx_hash_or_error}")
 
         except Exception as e:
-            logger.error(f"Executor worker #{worker_id} error: {e}")
+            _logger.error(f"Executor worker #{worker_id} error: {e}")
 
 def control_listener():
     """

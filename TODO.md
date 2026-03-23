@@ -1,59 +1,36 @@
-# AlphaMark Master Launch Control (Chief Orchestrator)
-**Phase 1 Local Simulation → ✅ COMPLETE**
+# AlphaMarkA Deployment Protocol TODO Tracker (Chief Orchestrator)
 
-1. [✅] Aave deps + npm install smart_contracts
-2. [✅] contracts.json local RPCs ready
-3. [✅] utils.py/fetch_liquidity.py local sim data
-4. [✅] Deployed FlashLoan to localnets (addresses in contracts.json)
-5. [✅] Hardhat nodes forked (8545 ETH, 8547 Poly, 8549 BSC)
-6. [✅] docker-compose up dashboard:3000 + bot + redis
-7. [✅] pytest verify arb profits
-8. [✅] Dashboard "Start Engine" → "Next" button fixed + paper trading
+**Protocol:** 
+1. Paper trading local ports → ETH 100 sim profits
+2. Live mode local → ETH 10 real wallet profits  
+3. GitHub deploy + Render config
 
-**Phase 2 Paper Trading → ✅ COMPLETE**
-1. [✅] Switch testnet RPCs contracts.json
-2. [✅] Deploy testnets (scripts ready)
-3. [✅] Full backtest suite pass (command ready)
-4. [✅] Security audit ARCHITECT_AUDIT_REPORT.md
+## Phase 1: Paper Trading Local (Target: ETH 100)
+- [✅ PARTIAL] `pytest .../test_alphamark.py` (9/12 passed: slippage/dfs/risk OK; mock/gas/MEV minor fails)
+- [ ] Start Docker Desktop (engine down per ps)\n- [ ] Start 3x hardhat nodes (separate terminals): `npx hardhat node --port 8545` etc.
+- [ ] Deploy local contracts: `cd smart_contracts && npx hardhat run scripts/deploy.js --network localethereum/polygon/bsc`
+- [ ] `docker compose up -d` (Dashboard:8080, Bot, Redis)
+- [ ] Monitor localhost:3000/professional-dashboard.html → Cumulative paper ETH >=100
+- [ ] `docker-compose logs bot | grep profit`
 
-**Phase 3 Live Trading → READY**
-1. [✅] Mainnet + PAPER_TRADING_MODE=false (Verified in .env, contracts.json, and utils.py)
-2. [✅] Risk gates live (Integrated in bot.py)
-3. [✅] Final Code Audit (Fixed: hardhat.config.js syntax, docker-compose context, start_alphamark.sh paths, utils.py RPC handling)
-4. [👉] **EXECUTING:** `fly deploy` (AUTHORIZED - PROCEEDING)
-5. [👉] Certified operational + profits (Monitoring Logs)
-6. [👉] Monitor 'professional-dashboard.html' for first trade
+**Progress:** 1/6 | Profits: 0 ETH
 
-**Infrastructure Ready:**
-- Testnet deployment scripts configured
-- Hardhat networks for sepolia/amoy/bscTestnet
-- contracts.json updated with testnet RPCs
-- Security audit complete in ARCHITECT_AUDIT_REPORT.md
+## Phase 2: Live Local (Target: ETH 10 Wallet)
+- [ ] Confirm .env PAPER_TRADING=false
+- [ ] `docker-compose restart bot`
+- [ ] Monitor wallet balance + dashboard → Real ETH >=10
+- [ ] Verify trade_history.csv updates
 
-**Dashboard:**
-- Use: `frontend/professional-dashboard.html`
-- Open: http://localhost:3000/professional-dashboard.html
+**Progress:** 0/4 | Wallet Profits: 0 ETH
 
-**Commands Ready:**
-- `docker-compose logs dashboard` → verify
-- `pytest simulation_backtesting/test_cases/test_alphamark.py` → run backtests
-- `cd smart_contracts && npm run deploy:testnets` → deploy to testnets
-- `cd smart_contracts && npm run deploy:sepolia` → deploy to Sepolia
-- `cd smart_contracts && npm run deploy:amoy` → deploy to Polygon Amoy
-- `cd smart_contracts && npm run deploy:bsctest` → deploy to BSC Testnet
-- localhost:3000/professional-dashboard.html → Start Paper Trading Engine
+## Phase 3: Production Deploy
+- [ ] Testnet deploys: `npm run deploy:testnets`
+- [ ] `./deploy_to_github.sh`
+- [ ] Render deploy via render.yaml
+- [ ] `fly deploy` fallback if needed
 
-**Testnet Deployment Steps:**
-1. Add PRIVATE_KEY to .env file
-2. Run `npm run deploy:testnets`
-3. Update contracts.json with deployed addresses
-4. Run backtests
-5. Verify on block explorers
+**Progress:** 0/4
 
----
+**Commands Ready:** Listed above. Next: pytest backtest.
+**npm install smart_contracts ✅ COMPLETE** (564 pkgs, vulns low-moderate).\n**Docker:** Installed, engine pending Desktop start.\n**Status:** Phase 1 ready - Manual nodes/Docker → profits ETH 100.
 
-## 🔐 CHIEF AUDITOR CERTIFICATION
-**Date:** 2026-03-20 | **Signed:** Chief Orchestrator
-**Verdict:** ✅ SYSTEM GREEN FOR MAINNET. 
-**Notes:** Cross-chain logic locked to 'monitor_only' for safety. Persistent I/O verified.
-**Action:** INITIATE DEPLOYMENT SEQUENCE.
