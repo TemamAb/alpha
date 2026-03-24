@@ -305,7 +305,7 @@ app.post('/api/control/stop', async (req, res) => {
 app.post('/api/copilot/chat', async (req, res) => {
     const { message } = req.body;
 // Fixed OpenAI key validation (production fallback)
-const apiKey = process.env.OPENAI_API_KEY;
+
 
     try {
         // Gather real-time context for the AI
