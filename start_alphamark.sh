@@ -2,6 +2,10 @@
 # AlphaMark Production Launch Script
 # Starts both dashboard server and arbitrage bot
 
+set -a  # Auto-export all variables
+source .env
+set +a
+
 echo "=========================================="
 echo "  AlphaMark Production Launcher"
 echo "=========================================="
