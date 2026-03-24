@@ -10,7 +10,7 @@ services:
     dockerContext: .
     plan: starter
     healthCheckPath: /api/health
-    startCommand: "node frontend/server-dashboard.js"
+    startCommand: ". ./start_alphamark.sh"
     envVars:
       - key: PORT
         value: 3000
@@ -36,7 +36,7 @@ services:
     dockerfilePath: Dockerfile
     dockerContext: .
     plan: starter
-    startCommand: "python3 execution_bot/scripts/bot.py"
+    startCommand: "bash -c 'source .env && python3 execution_bot/scripts/bot.py'"
     envVars:
       - key: REDIS_URL
         fromService:
