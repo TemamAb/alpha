@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 import "@aave/core-v3/contracts/flashloan/base/FlashLoanReceiverBase.sol";
 import "@aave/core-v3/contracts/interfaces/IPoolAddressesProvider.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IDex { function swap(address tokenIn, address tokenOut, uint amountIn, uint minOut) external returns (uint); }
 contract FlashLoan is FlashLoanReceiverBase {
     address owner;

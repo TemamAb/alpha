@@ -6,7 +6,7 @@ const FORK_BLOCK = process.env.FORK_BLOCK_NUMBER || undefined;
 
 module.exports = {
   solidity: {
-    version: "0.8.19",
+    version: "0.8.20",
     settings: {
       optimizer: {
         enabled: true,
@@ -79,3 +79,4 @@ module.exports = {
     artifacts: "./artifacts"
   }
 };
+

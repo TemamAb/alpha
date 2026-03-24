@@ -41,10 +41,8 @@ contract Multicall {
         returnData = new bytes[](calls.length);
         
         for (uint256 i = 0; i < calls.length; i++) {
-            bytes memory result = calls[i].target.call(calls[i].callData);
-            if (result.length == 0) {
-                require(calls[i].target == address(0), "Multicall: call failed");
-            }
+            (bool success, bytes memory result) = calls[i].target.call(calls[i].callData);
+            require(success, "Multicall: call failed");
             returnData[i] = result;
         }
     }

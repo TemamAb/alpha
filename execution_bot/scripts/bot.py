@@ -145,6 +145,9 @@ MIN_LIQUIDITY = int(os.environ.get("MIN_LIQUIDITY", "1000"))  # tokens
 DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "http://localhost:3000")
 REDIS_URL = os.environ.get("REDIS_URL")
 
+# Active wallets for multi-wallet trading
+ACTIVE_WALLETS = {}
+
 def report_execution_to_dashboard(opportunity, success, profit=0, loss=0, tx_hash=None):
     """Report execution results to dashboard server asynchronously (non-blocking)"""
     def _send():
@@ -168,6 +171,24 @@ def report_execution_to_dashboard(opportunity, success, profit=0, loss=0, tx_has
     # Fire and forget - don't block the trading loop
     threading.Thread(target=_send, daemon=True).start()
 
+def report_heartbeat(active_opps_count):
+    """Report scanning activity to dashboard without triggering a trade count"""
+    def _send():
+        try:
+            payload = {
+                "type": "HEARTBEAT",
+                "activeOpps": active_opps_count,
+                "timestamp": datetime.now().isoformat()
+            }
+            requests.post(
+                f"{DASHBOARD_URL}/api/bot/update",
+                json=payload,
+                timeout=2
+            )
+        except Exception:
+            pass # Fail silently for heartbeats
+    threading.Thread(target=_send, daemon=True).start()
+
 def calculate_dynamic_scan_interval(recent_opp_count, market_volatility=0.5):
     """
     Calculates the optimal scan interval based on market conditions.
@@ -189,6 +210,15 @@ def scanner_process(opportunity_queue: multiprocessing.Queue):
     last_interval_check = time.time()
     opportunities_in_window = 0
     scan_interval = 0.3
+    
+    # Initialize Redis connection ONCE, outside the loop
+    redis_client = None
+    if REDIS_URL:
+        try:
+            redis_client = redis.from_url(REDIS_URL)
+        except Exception as e:
+            logger.error(f"Scanner Redis Init Failed: {e}")
+
     while True:
 
         # === KILL SWITCH (Emergency Stop) ===
@@ -196,10 +226,9 @@ def scanner_process(opportunity_queue: multiprocessing.Queue):
             logger.critical("EMERGENCY KILL SWITCH ACTIVATED! Halting scanner.")
             return # terminate process
 
-        if REDIS_URL:
+        if redis_client:
             try:
-                r = redis.from_url(REDIS_URL)
-                if r.get("alphamark:kill_switch") == "true":
+                if redis_client.get("alphamark:kill_switch") == "true":
                     logger.critical("EMERGENCY KILL SWITCH (Redis) ACTIVATED! Halting scanner.")
                     return # terminate process
             except Exception as e:
@@ -212,6 +241,11 @@ def scanner_process(opportunity_queue: multiprocessing.Queue):
                 logger.info(f"Scanner found {len(opportunities)} potential opportunities.", extra={'chain': 'ALL'})
                 for opp in opportunities:
                     opportunity_queue.put(opp)
+            
+            # Report heartbeat periodically (or when opps found)
+            # Use modulo to avoid spamming every 0.3s if no opps, but report immediately if opps found
+            if opportunities or (int(time.time()) % 5 == 0):
+                 report_heartbeat(len(opportunities) if opportunities else 0)
             
             current_time = time.time()
             if current_time - last_interval_check > 5.0:
@@ -432,6 +466,12 @@ def run_bot():
     logger.info("🚀 Alphamark Arbitrage Bot starting in ENTERPRISE (multi-process) mode...")
     initialize_learning_system()
     logger.info(f"Dashboard URL: {DASHBOARD_URL}")
+
+    # FORCE 'spawn' method to prevent SSL/Socket corruption in worker processes (Critical for Requests/Redis)
+    try:
+        multiprocessing.set_start_method('spawn', force=True)
+    except RuntimeError:
+        pass
 
     # --- AUTO-START LOGIC FOR CLOUD DEPLOYMENT ---
     # Initialize Redis state to match environment mode immediately on startup

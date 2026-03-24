@@ -39,7 +39,7 @@ contract CrossChainFlashLoan is FlashLoanReceiverBase {
 
         IERC20(token).approve(buyDex, amounts[0]);
         
-        address[2] memory path = new address[](2);
+        address[] memory path = new address[](2);
         path[0] = token;
         path[1] = tokenOut;
 
@@ -56,7 +56,7 @@ contract CrossChainFlashLoan is FlashLoanReceiverBase {
         IERC20(tokenOut).approve(sellDex, tokenOutBalance);
 
         // Swap back on sellDex
-        address[2] memory path2 = new address[](2);
+        address[] memory path2 = new address[](2);
         path2[0] = tokenOut;
         path2[1] = token;
         IDexRouter(sellDex).swapExactTokensForTokens(

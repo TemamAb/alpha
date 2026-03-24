@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   redis:
     container_name: alpha-redis
@@ -28,6 +30,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PAPER_TRADING_MODE=${PAPER_TRADING_MODE:-true}
     depends_on:
       redis:
         condition: service_healthy

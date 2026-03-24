@@ -5,13 +5,20 @@ from eth_abi import encode
 try:
     from eth_abi.packed import encode_packed
 except ImportError:
-    try:
-        from eth_abi import encode_packed
-    except ImportError:
-        # Fallback: encode_packed not available in this version
-        def encode_packed(types, values):
-            from eth_abi import encode
-            return encode(types, values)
+    # Docker eth_abi version fallback - define packed encoding
+    def encode_packed(types, values):
+        import eth_abi
+        if hasattr(eth_abi, 'encode_packed'):
+            return eth_abi.encode_packed(types, values)
+        # Manual packed encoding fallback for old versions
+        packed = b''
+        for t, v in zip(types, values):
+            if t == 'address':
+                packed += bytes.fromhex(v[2:].zfill(64))
+            elif t == 'uint256':
+                packed += v.to_bytes(32, 'big')
+            # Add more types as needed
+        return packed
 import redis
 from web3 import Web3
 from eth_account import Account
@@ -44,7 +51,7 @@ def get_flashloan_address():
         return Web3.to_checksum_address(explicit_addr)
     
     # Option 2: Compute dynamically from deployer nonce
-    deployer_addr = os.environ.get("DEPLOYER_ADDRESS")
+    deployer_addr = os.environ.get("DEPLOYER_ADDRESS") or DEPLOYER_ADDRESS
     chain = os.environ.get("CHAIN", "ethereum").lower()
     
     if deployer_addr:
@@ -53,7 +60,13 @@ def get_flashloan_address():
             rpc_env = f"{chain.upper()}_RPC_URL"
             rpc = os.environ.get(rpc_env)
             if not rpc:
-                # Try alternate env var names
+                # Try alternate env var names (without _URL suffix, e.g., ETH_RPC)
+                rpc = os.environ.get(f"{chain.upper()}_RPC")
+            if not rpc:
+                # Try ETH_RPC as fallback
+                rpc = os.environ.get("ETH_RPC")
+            if not rpc:
+                # Final fallback to ETH_RPC_URL
                 rpc = os.environ.get("ETH_RPC_URL")
             
             if rpc:
@@ -81,6 +94,15 @@ PIMLICO_API_KEY = os.environ.get("PIMLICO_API_KEY")
 # Fallback to Hardhat Account #0 key if not set, for local simulation
 DEFAULT_LOCAL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 PRIVATE_KEY = os.environ.get("PRIVATE_KEY", DEFAULT_LOCAL_KEY)
+
+# Get wallet address - try multiple env var names
+WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS") or os.environ.get("WALLET_ADDRESS")
+DEPLOYER_ADDRESS = os.environ.get("DEPLOYER_ADDRESS") or WALLET_ADDRESS
+
+print(f"[EXECUTOR] PRIVATE_KEY set: {bool(PRIVATE_KEY and PRIVATE_KEY != DEFAULT_LOCAL_KEY)}")
+print(f"[EXECUTOR] WALLET_ADDRESS: {WALLET_ADDRESS}")
+print(f"[EXECUTOR] DEPLOYER_ADDRESS: {DEPLOYER_ADDRESS}")
+print(f"[EXECUTOR] PIMLICO_API_KEY set: {bool(PIMLICO_API_KEY)}")
 
 # If PIMLICO_KEY is missing, we can still run in local mode if configured
 if not PIMLICO_API_KEY: PIMLICO_API_KEY = "mock_key_for_local"

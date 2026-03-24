@@ -43,8 +43,23 @@ services:
           type: redis
           name: alpha-redis
           property: connectionString
+      # CRITICAL: Explicitly disable paper trading for live mode
       - key: PAPER_TRADING_MODE
         value: "false"
+      # Map RPC URLs correctly - code looks for ETH_RPC not ETH_RPC_URL
+      # Using free public RPCs to avoid quota limits
+      - key: ETH_RPC
+        value: "https://eth.llamarpc.com"
+      - key: POLYGON_RPC
+        value: "https://polygon-rpc.com"
+      - key: ARBITRUM_RPC
+        value: "https://arb1.arbitrum.io/rpc"
+      - key: BSC_RPC
+        value: "https://bsc-dataseed1.binance.org"
+      - key: OPTIMISM_RPC
+        value: "https://mainnet.optimism.io"
+      - key: BASE_RPC
+        value: "https://mainnet.base.org"
       # Secure secrets to be added in Render UI
       - key: PRIVATE_KEY
         sync: false
@@ -52,6 +67,24 @@ services:
         sync: false
       - key: PIMLICO_API_KEY
         sync: false
+      # CRITICAL: FlashLoan contract must be deployed and address set here
+      # Option 1: Set deployed contract address directly
+      - key: FLASHLOAN_CONTRACT_ADDRESS
+        sync: false
+      # Option 2: Set deployer address for dynamic address computation
+      - key: DEPLOYER_ADDRESS
+        sync: false
+      - key: CHAIN
+        value: "ethereum"
+      - key: OPENAI_API_KEY
+        sync: false
+      # Aave V3 Pool address for Ethereum mainnet
+      - key: AAVE_POOL_ADDRESS
+        value: "0x87870Bca3F3fD6335C3F4c8392D7A5D3f4c4C5E"
+      - key: ENTRYPOINT_ADDRESS
+        value: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+      - key: SIMPLE_ACCOUNT_FACTORY
+        value: "0x9406Cc6185a346906296840746125a0E44976454"
 
 # 3. High-Speed IPC Backbone (Managed Redis)
 redis:

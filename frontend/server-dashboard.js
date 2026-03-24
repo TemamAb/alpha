@@ -7,24 +7,6 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 app.use(express.json());
-
-/*
-// --- SECURITY: Basic Auth for Production Dashboard (DISABLED AT USER REQUEST) ---
-const BASIC_USER = process.env.DASHBOARD_USER || 'admin';
-const BASIC_PASS = process.env.DASHBOARD_PASS || 'alpha-secure-2026';
-
-app.use((req, res, next) => {
-    if (req.path === '/api/health') return next();
-    const auth = { login: BASIC_USER, password: BASIC_PASS };
-    const b64auth = (req.headers.authorization || '').split(' ')[1] || '';
-    const [login, password] = Buffer.from(b64auth, 'base64').toString().split(':');
-    if (login && password && login === auth.login && password === auth.password) return next();
-    res.set('WWW-Authenticate', 'Basic realm="AlphaMark | Secured"');
-    res.status(401).send('🛡️ ACCESS DENIED: Authentication Required.');
-});
-*/
-
-// Fix: server-dashboard.js is ALREADY inside the 'frontend' directory
 app.use(express.static(__dirname));
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -36,6 +18,10 @@ app.get('/', (req, res) => {
 
 // Stats (same as before)
 const PORT = process.env.PORT || 3000;
+
+// Check for OpenAI Key on startup
+const hasOpenAI = !!process.env.OPENAI_API_KEY;
+console.log(`[CONFIG] OpenAI API Key detected: ${hasOpenAI ? 'YES (Active)' : 'NO (Copilot Disabled)'}`);
 
 // --- Redis Connection ---
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -92,7 +78,7 @@ async function getBotStats() {
 
 // Serve the dashboard HTML
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'professional-dashboard.html'));
+    res.sendFile(path.join(__dirname, 'frontend', 'professional-dashboard.html'));
 });
 
 // GET /api/stats
@@ -112,6 +98,16 @@ app.get('/api/wallet/balance', async (req, res) => {
 app.post('/api/bot/update', async (req, res) => {
     const update = req.body; // { success, profit, loss, chain, txHash, timestamp }
     const stats = await getBotStats();
+    
+    // HANDLE HEARTBEATS: Update scanning stats but DO NOT count as a trade
+    if (update.type === 'HEARTBEAT') {
+        if (update.activeOpps !== undefined) stats.activeOpps = update.activeOpps;
+        // We can add a 'lastHeartbeat' timestamp here to track bot health
+        stats.lastUpdate = Date.now();
+        await redisClient.set('alphamark:stats', JSON.stringify(stats));
+        await redisClient.publish('alphamark:updates', JSON.stringify(stats));
+        return res.json({ success: true });
+    }
     
     // Update Aggregates
     stats.trades = (stats.trades || 0) + 1;
@@ -304,8 +300,14 @@ app.post('/api/control/stop', async (req, res) => {
 // Alpha-Copilot Intelligence Engine
 app.post('/api/copilot/chat', async (req, res) => {
     const { message } = req.body;
-// Fixed OpenAI key validation (production fallback)
+    const apiKey = process.env.OPENAI_API_KEY;
 
+    if (!apiKey) {
+        return res.json({ 
+            success: false, 
+            reply: "⚠️ ALPHA-COPILOT ERROR: Missing `OPENAI_API_KEY` in .env file. Please configure it to enable AI intelligence." 
+        });
+    }
 
     try {
         // Gather real-time context for the AI

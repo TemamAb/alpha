@@ -134,7 +134,7 @@ def get_rpc(chain):
     if chain in CONFIG:
         rpcs = []
         # Support rpc_production for live mode
-        is_paper = os.environ.get("PAPER_TRADING_MODE", "true").lower() == "true"
+        is_paper = os.environ.get("PAPER_TRADING_MODE", "false").lower() == "true"
         if not is_paper and CONFIG[chain].get('rpc_production'):
             rpcs.append(CONFIG[chain]['rpc_production'])
             
@@ -283,8 +283,8 @@ def get_all_dex_pairs(w3, factory_address):
                 
                 token0 = w3.to_checksum_address(token0)
                 token1 = w3.to_checksum_address(token1)
-                if token0 not in graph: graph[token0] = set()
-                if token1 not in graph: graph[token1] = set()
+                if token0 not in graph: graph[token0] = []
+                if token1 not in graph: graph[token1] = []
                 graph[token0].append(token1)
                 graph[token1].append(token0)
             except Exception as e:
