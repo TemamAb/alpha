@@ -4,8 +4,20 @@ const WebSocket = require('ws');
 const redis = require('redis');
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const dotenv = require('dotenv');
+// Dynamic .env discovery (handles local, Docker, and Render paths)
+const envPaths = [
+    path.join(__dirname, '../.env'),
+    path.join(__dirname, '.env'),
+    path.join(process.cwd(), '.env')
+];
+for (const p of envPaths) {
+    if (fs.existsSync(p)) {
+        dotenv.config({ path: p });
+        console.log(`[CONFIG] Environment loaded from: ${p}`);
+        break;
+    }
+}
 
 const app = express();
 app.use(express.json());
@@ -48,10 +60,10 @@ const LIVE_ENV_REQUIREMENTS = {
         'WALLET_ADDRESS',
         'DEPLOYER_ADDRESS',
         'PIMLICO_API_KEY',
-        'FLASHLOAN_CONTRACT_ADDRESS'
+        'FLASHLOAN_CONTRACT_ADDRESS',
+        'REDIS_URL'
     ],
     services: [
-        'REDIS_URL',
         'OPENAI_API_KEY'
     ],
     rpc: [
@@ -244,8 +256,37 @@ const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URL_EXTERNAL || pro
 
 if (REDIS_URL) {
     console.log(`[ORCHESTRATOR] Initializing Redis Cluster link: ${REDIS_URL.split('@').pop()}`);
-    redisClient = redis.createClient({ url: REDIS_URL });
+    const redisOptions = {
+        url: REDIS_URL,
+        socket: {
+            tls: true,
+            connectTimeout: 30000,
+            family: 0,
+            keepAlive: 30000
+        },
+        connectTimeout: 30000,
+        commandTimeout: 5000,
+        retryDelayMax: 30000,
+        enableReadyCheck: false,
+        enableAutoPipelining: true
+    };
+    redisClient = redis.createClient(redisOptions);
     redisSubscriber = redisClient.duplicate();
+    
+    // Enhanced logging
+    redisClient.on('connect', () => console.log('[REDIS] Connecting...'));
+    redisClient.on('ready', () => {
+        console.log('[REDIS] Client READY');
+        redisReady = true;
+    });
+    redisClient.on('reconnecting', (ms) => console.log(`[REDIS] Reconnecting in ${ms}ms...`));
+    redisClient.on('error', (err) => {
+        console.error('[REDIS] ERROR:', err.message, err.code);
+        if (!redisReady) {
+            console.warn('[REDIS] Initial handshake failed. Render KV provisioning delay?');
+        }
+        redisReady = false;
+    });
 
     redisClient.on('error', (err) => {
         if (!redisReady) {
@@ -708,7 +749,13 @@ app.post('/api/control/start', async (req, res) => {
             await redisClient.set('alphamark:status', 'RUNNING');
             await redisClient.set('alphamark:mode', mode);
             await redisClient.publish('alphamark:control', JSON.stringify({ command: 'START', mode }));
-        } catch (err) {}
+        } catch (err) {
+             return res.status(503).json({ success: false, message: 'Redis cluster synchronization failed.' });
+        }
+    } else {
+        // CRITICAL FIX: Prevent start if bridge is down
+        console.error('[ORCHESTRATOR] START FAILED: Redis disconnected.');
+        return res.status(503).json({ success: false, message: 'ORCHESTRATION BRIDGE DOWN: Cannot reach bot without Redis.' });
     }
     
     const modeLog = isPaper ? 'PAPER TRADING' : 'LIVE TRADING';
@@ -749,8 +796,22 @@ app.post('/api/settings/upload-env', async (req, res) => {
         const newConfig = dotenv.parse(envContent);
         console.log(`[CONFIG] Received .env upload with ${Object.keys(newConfig).length} keys`);
 
-        const envPath = path.join(__dirname, '../.env');
-        const backupDir = path.join(__dirname, '../backups');
+        const envPathCandidates = [
+            path.join(__dirname, '.env'),
+            path.join(process.cwd(), '.env'),
+            path.join(__dirname, '../.env')
+        ];
+        
+        let envPath = envPathCandidates[0];
+        // Use the first one that exists, or default to the first one if none exist
+        for (const p of envPathCandidates) {
+            if (fs.existsSync(p)) {
+                envPath = p;
+                break;
+            }
+        }
+
+        const backupDir = path.join(path.dirname(envPath), 'backups');
 
         if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
