@@ -10,7 +10,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
-    redis-server \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Install Node Dependencies (Dashboard)
@@ -29,7 +28,7 @@ RUN chmod +x start_alphamark.sh
 
 # 6. Set Environment Defaults
 ENV PORT=3000
-ENV PAPER_TRADING_MODE=false
+ENV PAPER_TRADING_MODE=true
 ENV NODE_ENV=production
 ENV PYTHONUNBUFFERED=1
 

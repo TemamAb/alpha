@@ -1,93 +1,108 @@
-# AlphaMark - Render Blueprint (Infrastructure as Code)
-# Orchestrates a distributed, high-performance arbitrage ecosystem
-
 services:
-  # 1. Institutional Monitoring Dashboard (Web Service)
   - type: web
     name: alphamark-dashboard
-    env: docker
-    dockerfilePath: Dockerfile
+    runtime: docker
+    dockerfilePath: frontend/Dockerfile
     dockerContext: .
     plan: starter
+    autoDeploy: false
     healthCheckPath: /api/health
-    startCommand: ". ./start_alphamark.sh"
     envVars:
       - key: PORT
-        value: 3000
+        value: "3000"
       - key: NODE_ENV
         value: production
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: alpha-redis
-          property: connectionString
-      # Pull other secrets from the Render dashboard (User adds these)
-      - key: DASHBOARD_USER
-        sync: false
-      - key: DASHBOARD_PASS
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-
-  # 2. High-Frequency Arbitrage Engine (Background Worker)
-  - type: worker
-    name: alphamark-bot
-    env: docker
-    dockerfilePath: Dockerfile
-    dockerContext: .
-    plan: starter
-    startCommand: "bash -c 'source .env && python3 execution_bot/scripts/bot.py'"
-    envVars:
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: alpha-redis
-          property: connectionString
-      # CRITICAL: Explicitly disable paper trading for live mode
       - key: PAPER_TRADING_MODE
         value: "false"
-      # Map RPC URLs correctly - code looks for ETH_RPC not ETH_RPC_URL
-      # Using free public RPCs to avoid quota limits
-      - key: ETH_RPC
-        value: "https://eth.llamarpc.com"
-      - key: POLYGON_RPC
-        value: "https://polygon-rpc.com"
-      - key: ARBITRUM_RPC
-        value: "https://arb1.arbitrum.io/rpc"
-      - key: BSC_RPC
-        value: "https://bsc-dataseed1.binance.org"
-      - key: OPTIMISM_RPC
-        value: "https://mainnet.optimism.io"
-      - key: BASE_RPC
-        value: "https://mainnet.base.org"
-      # Secure secrets to be added in Render UI
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: alpha-redis
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
       - key: PRIVATE_KEY
         sync: false
       - key: WALLET_ADDRESS
         sync: false
-      - key: PIMLICO_API_KEY
-        sync: false
-      # CRITICAL: FlashLoan contract must be deployed and address set here
-      # Option 1: Set deployed contract address directly
-      - key: FLASHLOAN_CONTRACT_ADDRESS
-        sync: false
-      # Option 2: Set deployer address for dynamic address computation
       - key: DEPLOYER_ADDRESS
         sync: false
-      - key: CHAIN
-        value: "ethereum"
+      - key: PIMLICO_API_KEY
+        sync: false
+
+  - type: worker
+    name: alphamark-bot
+    runtime: docker
+    dockerfilePath: Dockerfile.bot
+    dockerContext: .
+    plan: starter
+    autoDeploy: false
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PAPER_TRADING_MODE
+        value: "false"
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: alpha-redis
+          property: connectionString
+      - key: DASHBOARD_HOSTPORT
+        fromService:
+          type: web
+          name: alphamark-dashboard
+          property: hostport
+      - key: PRIVATE_KEY
+        sync: false
+      - key: WALLET_ADDRESS
+        sync: false
+      - key: DEPLOYER_ADDRESS
+        sync: false
+      - key: PIMLICO_API_KEY
+        sync: false
+      - key: FLASHLOAN_CONTRACT_ADDRESS
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
-      # Aave V3 Pool address for Ethereum mainnet
-      - key: AAVE_POOL_ADDRESS
-        value: "0x87870Bca3F3fD6335C3F4c8392D7A5D3f4c4C5E"
-      - key: ENTRYPOINT_ADDRESS
-        value: "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
-      - key: SIMPLE_ACCOUNT_FACTORY
-        value: "0x9406Cc6185a346906296840746125a0E44976454"
+      - key: ETH_RPC_URL
+        sync: false
+      - key: POLYGON_RPC_URL
+        sync: false
+      - key: BSC_RPC_URL
+        sync: false
+      - key: ARBITRUM_RPC_URL
+        sync: false
+      - key: OPTIMISM_RPC_URL
+        sync: false
+      - key: BASE_RPC_URL
+        sync: false
+      - key: AVALANCHE_RPC_URL
+        sync: false
+      - key: LINEA_RPC_URL
+        sync: false
+      - key: SCROLL_RPC_URL
+        sync: false
+      - key: ZORA_RPC_URL
+        sync: false
+      - key: GNOSIS_RPC_URL
+        sync: false
+      - key: FANTOM_RPC_URL
+        sync: false
+      - key: CELO_RPC_URL
+        sync: false
+      - key: MANTLE_RPC_URL
+        sync: false
+      - key: BERACHAIN_RPC_URL
+        sync: false
+      - key: MODE_RPC_URL
+        sync: false
+      - key: BLAST_RPC_URL
+        sync: false
+      - key: SEI_RPC_URL
+        sync: false
 
-# 3. High-Speed IPC Backbone (Managed Redis)
-redis:
-  name: alpha-redis
-  plan: free
-  ipAllowList: [] # Only allow internal connections for maximum security
+  - type: keyvalue
+    name: alpha-redis
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []

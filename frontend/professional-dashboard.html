@@ -544,6 +544,47 @@
             // Show paper trading banner if enabled
             if (data.paperTradingMode) {
                 document.getElementById('paperTradingBanner').classList.remove('hidden');
+            } else {
+                document.getElementById('paperTradingBanner').classList.add('hidden');
+            }
+
+            if (data.currentMode) {
+                currentTradingMode = data.currentMode;
+            }
+
+            const statusText = document.getElementById('engineStatusText');
+            const startBtn = document.getElementById('startEngineBtn');
+            const pauseBtn = document.getElementById('pauseEngineBtn');
+            const engineStatus = data.engineStatus || 'STOPPED';
+
+            if (engineStatus === 'RUNNING') {
+                isEngineRunning = true;
+                startBtn.classList.add('hidden');
+                pauseBtn.classList.remove('hidden');
+                pauseBtn.classList.add('flex');
+                pauseBtn.innerHTML = `
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                    Pause Engine`;
+                pauseBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+                pauseBtn.classList.add('bg-yellow-600', 'hover:bg-yellow-500');
+                statusText.innerHTML = `<span class="text-emerald-400 font-bold">Engine is RUNNING (${data.paperTradingMode ? 'PAPER' : 'LIVE'}).</span>`;
+            } else if (engineStatus === 'PAUSED') {
+                isEngineRunning = false;
+                startBtn.classList.add('hidden');
+                pauseBtn.classList.remove('hidden');
+                pauseBtn.classList.add('flex');
+                pauseBtn.innerHTML = `
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A.5.5 0 008 7.5v5a.5.5 0 00.555.492l3.5-2.5a.5.5 0 000-.984l-3.5-2.5z" clip-rule="evenodd"></path></svg>
+                    Resume Engine`;
+                pauseBtn.classList.remove('bg-yellow-600', 'hover:bg-yellow-500');
+                pauseBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+                statusText.innerHTML = `<span class="text-yellow-400 font-bold">Engine is PAUSED.</span>`;
+            } else {
+                isEngineRunning = false;
+                startBtn.classList.remove('hidden');
+                pauseBtn.classList.add('hidden');
+                pauseBtn.classList.remove('flex');
+                statusText.innerHTML = `<span class="text-red-500 font-bold">Engine STOPPED.</span>`;
             }
             
             // Multi-Wallet List Update
@@ -558,20 +599,13 @@
             }
             
             // Performance Metrics
-            const tradeCount = data.trades || 1;
-            const profitPerTrade = (data.totalProfit || 0) / tradeCount;
-            document.getElementById('metricProfitPerTrade').innerText = profitPerTrade.toFixed(4);
-            
-            // Calculate rates based on session start
-            const sessionMinutes = (Date.now() - window.sessionStart) / 60000;
-            const hours = sessionMinutes / 60 || 1; // avoid div/0 for first second
-            
-            // Mock/Estimate rates for now based on total runtime
-            const tradesPerHour = Math.round(data.trades / hours);
-            const profitPerHour = ((data.totalProfit || 0) / hours).toFixed(4);
-            
-            document.getElementById('metricTradesPerHour').innerText = tradesPerHour.toString();
-            document.getElementById('metricProfitPerHour').innerText = profitPerHour;
+            const metrics = data.performanceMetrics || {};
+            document.getElementById('metricLatency').innerText = metrics.latencyMeasured && metrics.latencyMs !== null
+                ? `${Math.round(metrics.latencyMs)}ms`
+                : 'N/A';
+            document.getElementById('metricProfitPerTrade').innerText = Number(metrics.profitPerTrade || 0).toFixed(4);
+            document.getElementById('metricTradesPerHour').innerText = Math.round(metrics.tradesPerHour || 0).toString();
+            document.getElementById('metricProfitPerHour').innerText = Number(metrics.profitPerHour || 0).toFixed(4);
 
             // Update Chart with simulated history based on total profit
             // In a real app, backend would send history array
@@ -990,12 +1024,12 @@
 
 
 
-        function pauseEngine() {
+        async function pauseEngine() {
             const pauseBtn = document.getElementById('pauseEngineBtn');
             const statusText = document.getElementById('engineStatusText');
 
             if (isEngineRunning) {
-                fetch('/api/control/pause', { method: 'POST' });
+                await fetch('/api/control/pause', { method: 'POST' });
 
                 isEngineRunning = false;
                 pauseBtn.innerHTML = `
@@ -1006,7 +1040,7 @@
                 statusText.innerHTML = `<span class="text-yellow-400 font-bold">Engine is PAUSED.</span>`;
             } else {
                 // RESUME: Use the stored mode to prevent accidental switch to LIVE
-                fetch('/api/control/start', { 
+                await fetch('/api/control/start', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ mode: currentTradingMode }) 

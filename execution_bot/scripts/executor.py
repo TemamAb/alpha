@@ -24,16 +24,49 @@ from web3 import Web3
 from eth_account import Account
 
 # --- Configuration ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [EXECUTOR] - %(message)s')
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+DEFAULT_LOCAL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
 REDIS_URL = os.environ.get("REDIS_URL")
 # MEV Protection: Enabled by default for production use
 # Set MEV_PROTECTION=false only for testing on testnets
 PRIVATE_MODE = os.environ.get("MEV_PROTECTION", "true").lower() == "true"
 
-# Paper Trading Mode: If true, simulates everything but does not send the final transaction
-PAPER_TRADING_MODE = os.environ.get("PAPER_TRADING_MODE", "false").lower() == "true"
+# Mode Transition Documentation:
+# ============================
+#
+# PAPER TRADING MODE (Simulation):
+#   - Set: PAPER_TRADING_MODE=true (in .env or via environment variable)
+#   - Bot: Scans for arbitrage opportunities, validates liquidity/risk
+#   - Executor: Simulates execution, returns fake hash, NO real transactions
+#   - Dashboard: Shows simulated profits in trade_history.csv
+#   - Risk: NONE (no real funds used)
+#
+# LIVE TRADING MODE (Production):
+#   - Set: PAPER_TRADING_MODE=false
+#   - Bot: Scans for arbitrage opportunities, validates liquidity/risk
+#   - Executor: Executes real flash loan transactions via Pimlico bundler
+#   - Dashboard: Shows real profits from on-chain execution
+#   - Risk: REAL FUNDS (uses wallet PRIVATE_KEY)
+#
+# Transition Steps:
+#   1. Start with PAPER_TRADING_MODE=true to verify system works
+#   2. Check trade_history.csv for simulated profits
+#   3. To switch to LIVE: edit .env or run: set PAPER_TRADING_MODE=false
+#   4. Restart bot - it will now execute real transactions
+#   5. Monitor dashboard for real profit/loss
+
+# Paper Trading Mode: Read from environment variable
+# Set PAPER_TRADING_MODE=false in .env for live trading
+PAPER_TRADING_MODE = os.environ.get("PAPER_TRADING_MODE", "true").lower() == "true"
+
+def log_mode_status():
+    if not PAPER_TRADING_MODE:
+        logger.warning("⚠️  WARNING: EXECUTOR RUNNING IN LIVE PROFIT MODE. REAL FUNDS WILL BE USED. ⚠️")
+    else:
+        logger.info("ℹ️  Executor initialized in PAPER TRADING mode.")
 
 # Dynamically compute FlashLoan contract address if not set
 def get_flashloan_address():
@@ -69,31 +102,28 @@ def get_flashloan_address():
                 # Final fallback to ETH_RPC_URL
                 rpc = os.environ.get("ETH_RPC_URL")
             
-            if rpc:
-                w3 = Web3(Web3.HTTPProvider(rpc))
-                if w3.is_connected():
+            try:
+                if rpc:
+                    w3 = Web3(Web3.HTTPProvider(rpc))
                     # Import the deploy utility
                     import sys
                     sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'strategy_engine', 'src'))
                     from deploy import predict_flashloan_address
                     
                     predicted = predict_flashloan_address(w3, deployer_addr)
-                    logger.info(f"Dynamically computed FlashLoan address: {predicted}")
                     return predicted
+            except Exception:
+                pass
         except Exception as e:
             logger.warning(f"Failed to dynamically compute address: {e}")
-    
-    # No valid address found
+
     return None
 
 FLASHLOAN_CONTRACT_ADDRESS = None  # Will be resolved at runtime
 
 # --- Load from Environment ---
 PIMLICO_API_KEY = os.environ.get("PIMLICO_API_KEY")
-
-# Fallback to Hardhat Account #0 key if not set, for local simulation
-DEFAULT_LOCAL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-PRIVATE_KEY = os.environ.get("PRIVATE_KEY", DEFAULT_LOCAL_KEY)
+PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
 
 # Get wallet address - try multiple env var names
 WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS") or os.environ.get("WALLET_ADDRESS")
@@ -104,12 +134,39 @@ print(f"[EXECUTOR] WALLET_ADDRESS: {WALLET_ADDRESS}")
 print(f"[EXECUTOR] DEPLOYER_ADDRESS: {DEPLOYER_ADDRESS}")
 print(f"[EXECUTOR] PIMLICO_API_KEY set: {bool(PIMLICO_API_KEY)}")
 
-# If PIMLICO_KEY is missing, we can still run in local mode if configured
-if not PIMLICO_API_KEY: PIMLICO_API_KEY = "mock_key_for_local"
+def _is_non_empty(value):
+    return bool(value and value.strip())
 
-# ARCHITECT NOTE: Fail-fast validation
-if not PIMLICO_API_KEY or not PRIVATE_KEY or not PIMLICO_API_KEY.strip() or not PRIVATE_KEY.strip():
-    raise EnvironmentError("CRITICAL: PIMLICO_API_KEY or PRIVATE_KEY missing. Cannot start Executor in PRODUCTION mode.")
+def sync_runtime_state():
+    global PAPER_TRADING_MODE, PRIVATE_KEY, WALLET_ADDRESS, DEPLOYER_ADDRESS
+
+    if not REDIS_URL:
+        return
+
+    try:
+        client = redis.from_url(REDIS_URL, socket_timeout=2, decode_responses=True)
+        runtime_mode = client.get("alphamark:mode")
+        if runtime_mode in {"paper", "live"}:
+            PAPER_TRADING_MODE = runtime_mode == "paper"
+
+        active_wallet_address = client.get("alphamark:active_wallet_address")
+        if active_wallet_address:
+            WALLET_ADDRESS = active_wallet_address
+            DEPLOYER_ADDRESS = active_wallet_address
+            runtime_private_key = client.get(f"alphamark:wallet:{active_wallet_address}:private_key")
+            if _is_non_empty(runtime_private_key):
+                PRIVATE_KEY = runtime_private_key
+    except Exception as exc:
+        logger.debug(f"Runtime state sync skipped: {exc}")
+
+def _should_require_live_credentials():
+    return not PAPER_TRADING_MODE
+
+if _should_require_live_credentials():
+    if not _is_non_empty(PIMLICO_API_KEY) or not _is_non_empty(PRIVATE_KEY):
+        raise EnvironmentError("CRITICAL: PIMLICO_API_KEY and PRIVATE_KEY are required for live execution.")
+elif not _is_non_empty(PRIVATE_KEY):
+    PRIVATE_KEY = DEFAULT_LOCAL_KEY
 
 ENTRYPOINT_ADDRESS = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
 SIMPLE_ACCOUNT_FACTORY_ADDRESS = "0x9406Cc6185a346906296840746125a0E44976454"
@@ -143,6 +200,30 @@ CHAIN_CONFIG = {
         "paymaster": f"https://api.pimlico.io/v2/42161/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": os.environ.get("ARBITRUM_PRIVATE_BUNDLER") if PRIVATE_MODE else f"https://api.pimlico.io/v1/42161/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 42161
+    },
+    "bsc": {
+        "rpc": os.environ.get("BSC_RPC", f"https://api.pimlico.io/v1/56/rpc?apikey={PIMLICO_API_KEY}"),
+        "paymaster": f"https://api.pimlico.io/v2/56/rpc?apikey={PIMLICO_API_KEY}",
+        "bundler": f"https://api.pimlico.io/v1/56/rpc?apikey={PIMLICO_API_KEY}",
+        "chain_id": 56
+    },
+    "optimism": {
+        "rpc": os.environ.get("OPTIMISM_RPC", f"https://api.pimlico.io/v1/10/rpc?apikey={PIMLICO_API_KEY}"),
+        "paymaster": f"https://api.pimlico.io/v2/10/rpc?apikey={PIMLICO_API_KEY}",
+        "bundler": f"https://api.pimlico.io/v1/10/rpc?apikey={PIMLICO_API_KEY}",
+        "chain_id": 10
+    },
+    "base": {
+        "rpc": os.environ.get("BASE_RPC", f"https://api.pimlico.io/v1/8453/rpc?apikey={PIMLICO_API_KEY}"),
+        "paymaster": f"https://api.pimlico.io/v2/8453/rpc?apikey={PIMLICO_API_KEY}",
+        "bundler": f"https://api.pimlico.io/v1/8453/rpc?apikey={PIMLICO_API_KEY}",
+        "chain_id": 8453
+    },
+    "avalanche": {
+        "rpc": os.environ.get("AVALANCHE_RPC", f"https://api.pimlico.io/v1/43114/rpc?apikey={PIMLICO_API_KEY}"),
+        "paymaster": f"https://api.pimlico.io/v2/43114/rpc?apikey={PIMLICO_API_KEY}",
+        "bundler": f"https://api.pimlico.io/v1/43114/rpc?apikey={PIMLICO_API_KEY}",
+        "chain_id": 43114
     },
     # --- Local Simulation Chains ---
     "localethereum": {
@@ -214,6 +295,7 @@ def execute_flashloan(opportunity: dict) -> (bool, str):
     # Variables are now guaranteed by module-level check, but we check specific chain config
     
 
+    sync_runtime_state()
     chain = opportunity.get("chain")
     if not chain or chain not in CHAIN_CONFIG:
         logger.error(f"Opportunity is missing or has unsupported 'chain': {chain}")
@@ -226,10 +308,18 @@ def execute_flashloan(opportunity: dict) -> (bool, str):
     if "host.docker.internal" in config["rpc"] or "127.0.0.1" in config["rpc"]:
         logger.info(f"Detected local RPC for {chain}. Switching to Direct Execution Mode.")
         config["is_local"] = True
+
+    if not _is_non_empty(PRIVATE_KEY):
+        logger.error("Configuration Error: PRIVATE_KEY missing.")
+        return False, "Configuration Error: Missing PRIVATE_KEY"
     
     if not config.get("bundler") and not config.get("is_local"):
         logger.error(f"Configuration Error: Missing 'bundler' URL for chain {chain}. Check env vars.")
         return False, "Configuration Error: Missing Bundler URL"
+
+    if not config.get("is_local") and not _is_non_empty(PIMLICO_API_KEY):
+        logger.error(f"Configuration Error: Missing Pimlico API key for chain {chain}.")
+        return False, "Configuration Error: Missing Pimlico API key"
 
     if chain not in W3_PROVIDERS:
         W3_PROVIDERS[chain] = Web3(Web3.HTTPProvider(config["rpc"], session=GLOBAL_SESSION))
