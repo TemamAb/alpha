@@ -205,7 +205,19 @@ def get_preferred_rpcs(chain):
     if chain == "ethereum":
         env_var_candidates = ["ETH_RPC_URL", "ETHEREUM_RPC_URL", "ETH_RPC", "ETHEREUM_RPC"] + env_var_candidates
 
+    # CHECK REDIS FIRST for dynamic runtime overrides
+    redis_client = _get_redis_client()
     for var in env_var_candidates:
+        # Check Redis Hash
+        if redis_client:
+            try:
+                val = redis_client.hget("alphamark:env", var)
+                if val:
+                    val_str = val.decode() if isinstance(val, bytes) else str(val)
+                    if val_str: rpcs.insert(0, val_str)
+            except Exception: pass
+            
+        # Fallback to local process environment
         val = os.environ.get(var)
         if val:
             rpcs.insert(0, val)

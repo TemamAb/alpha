@@ -138,26 +138,54 @@ def _is_non_empty(value):
     return bool(value and value.strip())
 
 def sync_runtime_state():
-    global PAPER_TRADING_MODE, PRIVATE_KEY, WALLET_ADDRESS, DEPLOYER_ADDRESS
+    global PAPER_TRADING_MODE, PRIVATE_KEY, WALLET_ADDRESS, DEPLOYER_ADDRESS, PIMLICO_API_KEY, PRIVATE_MODE
 
     if not REDIS_URL:
         return
 
     try:
+        # Use decode_responses=True for easier handling
         client = redis.from_url(REDIS_URL, socket_timeout=2, decode_responses=True)
+        
+        # 1. Sync Trading Mode
         runtime_mode = client.get("alphamark:mode")
         if runtime_mode in {"paper", "live"}:
             PAPER_TRADING_MODE = runtime_mode == "paper"
 
+        # 2. Sync Active Wallet & Key
         active_wallet_address = client.get("alphamark:active_wallet_address")
         if active_wallet_address:
             WALLET_ADDRESS = active_wallet_address
-            DEPLOYER_ADDRESS = active_wallet_address
+            # If we changed wallet, DEPLOYER_ADDRESS usually stays same unless also env updated
             runtime_private_key = client.get(f"alphamark:wallet:{active_wallet_address}:private_key")
             if _is_non_empty(runtime_private_key):
                 PRIVATE_KEY = runtime_private_key
+
+        # 3. Dynamic Env Sync: Pull from shared alphamark:env hash
+        # This allows dashboard-uploaded .env variables to propagate to the bot
+        env_overrides = client.hgetall("alphamark:env")
+        if env_overrides:
+            if "PIMLICO_API_KEY" in env_overrides:
+                PIMLICO_API_KEY = env_overrides["PIMLICO_API_KEY"]
+            if "PRIVATE_KEY" in env_overrides and not active_wallet_address:
+                PRIVATE_KEY = env_overrides["PRIVATE_KEY"]
+            if "WALLET_ADDRESS" in env_overrides and not active_wallet_address:
+                WALLET_ADDRESS = env_overrides["WALLET_ADDRESS"]
+            if "DEPLOYER_ADDRESS" in env_overrides:
+                DEPLOYER_ADDRESS = env_overrides["DEPLOYER_ADDRESS"]
+            if "MEV_PROTECTION" in env_overrides:
+                PRIVATE_MODE = env_overrides["MEV_PROTECTION"].lower() == "true"
+            
+            # ARCHITECT FIX: Update RPC URLs in CHAIN_CONFIG dynamically too
+            for chain, cfg in CHAIN_CONFIG.items():
+                rpc_var = f"{chain.upper()}_RPC_URL"
+                if rpc_var in env_overrides:
+                    cfg["rpc"] = env_overrides[rpc_var]
+                    # Reset any cached provider to force re-init with new RPC
+                    if chain in W3_PROVIDERS: del W3_PROVIDERS[chain]
+
     except Exception as exc:
-        logger.debug(f"Runtime state sync skipped: {exc}")
+        logger.debug(f"Runtime state sync failed: {exc}")
 
 def _should_require_live_credentials():
     return not PAPER_TRADING_MODE

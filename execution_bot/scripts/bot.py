@@ -110,12 +110,22 @@ def get_model_confidence(opportunity):
     return 0.75 + (len(opportunity.get('path', [])) * 0.05)
 
 # Configuration
-# Prefer Render's internal host-port if available
+REDIS_URL = os.environ.get("REDIS_URL")
 _internal_host = os.getenv("DASHBOARD_HOSTPORT")
 DASHBOARD_URL = os.getenv("DASHBOARD_URL")
+
+# ARCHITECT FIX: Check Redis for dynamic DASHBOARD_URL override (Priority)
+if REDIS_URL:
+    try:
+        r_temp = redis.from_url(REDIS_URL, socket_timeout=1, decode_responses=True)
+        redis_url_override = r_temp.hget("alphamark:env", "DASHBOARD_URL")
+        if redis_url_override:
+            DASHBOARD_URL = redis_url_override
+            logger.info(f"Using dynamic DASHBOARD_URL from Redis: {DASHBOARD_URL}")
+    except: pass
+
 if not DASHBOARD_URL:
     DASHBOARD_URL = f"http://{_internal_host}" if _internal_host else "http://localhost:3000"
-REDIS_URL = os.environ.get("REDIS_URL")
 ACTIVE_WALLETS = {}
 MAX_SLIPPAGE = float(os.getenv("MAX_SLIPPAGE", "0.005"))
 MIN_LIQUIDITY = int(os.getenv("MIN_LIQUIDITY", "1000"))
@@ -175,10 +185,25 @@ def control_listener():
                     wallet_data = data.get('data', {})
                     if wallet_data.get('address'):
                         r.delete(f"alphamark:wallet:{wallet_data['address']}:private_key")
+                elif data.get('type') == 'ENV_UPDATE':
+                    # Configuration dynamic reload
+                    env_data = data.get('data', {})
+                    for k, v in env_data.items():
+                        os.environ[k] = str(v)
+                    
+                    if "PAPER_TRADING_MODE" in env_data:
+                        val = str(env_data["PAPER_TRADING_MODE"]).lower() == "true"
+                        executor.PAPER_TRADING_MODE = val
+                    
+                    # Force a refresh of all dependent components (RPCs, keys etc)
+                    executor.sync_runtime_state()
+                    logger.info(f"Engine: Configuration reloaded at runtime ({len(env_data)} keys updated).")
+
                 elif data.get('type') == 'WALLET_UPDATE':
                     wallet_data = data.get('data', {})
                     if wallet_data.get('address'):
                         r.set('alphamark:active_wallet_address', wallet_data['address'])
+                        executor.sync_runtime_state()
     except: pass
 
 def wallet_balance_updater():

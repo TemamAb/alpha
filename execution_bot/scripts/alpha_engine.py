@@ -179,7 +179,7 @@ def get_scan_diagnostics_snapshot(redis_client=None):
 
 
 def get_runtime_control_state(redis_client=None):
-    status = "RUNNING"
+    status = "STOPPED"
     mode = "paper" if os.environ.get("PAPER_TRADING_MODE", "true").lower() == "true" else "live"
 
     if redis_client:

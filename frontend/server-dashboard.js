@@ -178,11 +178,13 @@ function getEnvRequirementsSnapshot() {
     const flatten = Object.entries(LIVE_ENV_REQUIREMENTS).flatMap(([group, keys]) =>
         keys.map((key) => {
             const value = process.env[key] || '';
+            const isReady = Boolean(value && value.length > 0);
+            
             return {
                 key,
                 group,
                 requiredForLiveTrading: LIVE_ENV_REQUIREMENTS.core.includes(key) || LIVE_ENV_REQUIREMENTS.rpc.includes(key),
-                present: Boolean(value),
+                present: isReady,
                 maskedValue: maskEnvValue(key, value)
             };
         })
@@ -389,19 +391,14 @@ async function getBotStats() {
     return stats;
 }
 
-// Global persistence helper
 async function persistStats(stats) {
     localStats = stats;
     broadcastToClients(stats);
     
     if (redisReady && redisClient && redisClient.isOpen) {
         try {
-            await persistStats(stats);
-            if (redisReady && redisClient && redisClient.isOpen) {
-            try {
-                await redisClient.publish('alphamark:updates', JSON.stringify(stats));
-            } catch (err) {}
-        }
+            await redisClient.set('alphamark:stats', JSON.stringify(stats));
+            await redisClient.publish('alphamark:updates', JSON.stringify(stats));
         } catch (err) {
             console.warn('[REDIS] Persistence failed:', err.message);
         }
@@ -743,45 +740,43 @@ app.post('/api/settings/upload-env', async (req, res) => {
         const envContent = req.body;
         if (!envContent) return res.status(400).json({ success: false, message: "No content received" });
 
-        // Parse the .env content
         const newConfig = dotenv.parse(envContent);
-        
         console.log(`[CONFIG] Received .env upload with ${Object.keys(newConfig).length} keys`);
 
-        // --- Backup & Persist Logic ---
         const envPath = path.join(__dirname, '../.env');
         const backupDir = path.join(__dirname, '../backups');
 
-        // 1. Create backup directory if needed
         if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 
-        // 2. Backup existing .env to JSON
         if (fs.existsSync(envPath)) {
             const currentEnvRaw = fs.readFileSync(envPath, 'utf8');
             const currentConfig = dotenv.parse(currentEnvRaw);
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const backupFile = path.join(backupDir, `config_backup_${timestamp}.json`);
             fs.writeFileSync(backupFile, JSON.stringify(currentConfig, null, 2));
-            console.log(`[BACKUP] Saved current config to ${backupFile}`);
         }
 
-        // 3. Write new .env content to disk (Persistence)
         fs.writeFileSync(envPath, envContent);
-        // ------------------------------
 
         for (const [key, value] of Object.entries(newConfig)) {
-            process.env[key] = value;
+            // ONLY OVERWRITE IF VALUE IS NOT EMPTY: Prevents clearing platform-injected vars like REDIS_URL
+            if (value && value.trim() !== '') {
+                process.env[key] = value;
+                // SYNC TO REDIS: Ensure distributed components (bot) see these updates
+                if (redisReady && redisClient && redisClient.isOpen) {
+                    await redisClient.hSet('alphamark:env', key, value);
+                }
+            }
         }
 
-        if (newConfig.WALLET_ADDRESS) {
+        if (newConfig.WALLET_ADDRESS && redisReady && redisClient && redisClient.isOpen) {
             await redisClient.set('alphamark:active_wallet_address', newConfig.WALLET_ADDRESS);
         }
-        if (newConfig.WALLET_ADDRESS && newConfig.PRIVATE_KEY) {
+        if (newConfig.WALLET_ADDRESS && newConfig.PRIVATE_KEY && redisReady && redisClient && redisClient.isOpen) {
             await redisClient.set(`alphamark:wallet:${newConfig.WALLET_ADDRESS}:private_key`, newConfig.PRIVATE_KEY);
         }
 
         const stats = await getBotStats();
-        ensureWalletState(stats);
         if (newConfig.WALLET_ADDRESS || newConfig.DEPLOYER_ADDRESS) {
             const walletAddress = newConfig.WALLET_ADDRESS || newConfig.DEPLOYER_ADDRESS;
             const existingWallet = stats.wallets.find((wallet) => wallet.address === walletAddress);
@@ -796,22 +791,31 @@ app.post('/api/settings/upload-env', async (req, res) => {
             }
             stats.wallet = stats.wallets.find((wallet) => wallet.address === walletAddress) || stats.wallet;
         }
+
+        if (newConfig.PAPER_TRADING_MODE) {
+            stats.paperTradingMode = newConfig.PAPER_TRADING_MODE !== 'false';
+            if (redisReady && redisClient && redisClient.isOpen) {
+                await redisClient.set('alphamark:mode', stats.paperTradingMode ? 'paper' : 'live');
+            }
+        }
+
         await persistStats(stats);
 
-        // Broadcast to Python Bot via Redis
-        await redisClient.publish('alphamark:config', JSON.stringify({
-            type: 'ENV_UPDATE',
-            data: newConfig
-        }));
+        if (redisReady && redisClient && redisClient.isOpen) {
+            await redisClient.publish('alphamark:config', JSON.stringify({
+                type: 'ENV_UPDATE',
+                data: newConfig
+            }));
+        }
 
-        res.json({
+        return res.json({
             success: true,
             message: "Configuration uploaded and broadcast to engine.",
             envRequirements: getEnvRequirementsSnapshot()
         });
     } catch (e) {
         console.error("Env upload failed:", e);
-        res.status(500).json({ success: false, message: e.message });
+        return res.status(500).json({ success: false, message: e.message });
     }
 });
 
