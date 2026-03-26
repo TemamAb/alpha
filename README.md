@@ -1,336 +1,204 @@
-# AlphaMark - Flash Loan Arbitrage System
+# AlphaMark
 
-![AlphaMark](https://img.shields.io/badge/AlphaMark-v1.0.0-blue)
-![Python](https://img.shields.io/badge/Python-3.11+-green)
-![Node.js](https://img.shields.io/badge/Node.js-18+-green)
-![Solidity](https://img.shields.io/badge/Solidity-0.8.10+-orange)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+AlphaMark is a multi-service arbitrage platform with a Python strategy/execution stack, a Node dashboard, Redis-backed control/telemetry, and Solidity flash-loan contracts.
 
-## ⚠️ Disclaimer
+## Status
 
-**WARNING: This is a high-risk financial application. Flash loan arbitrage involves significant technical and financial risks including but not limited to smart contract vulnerabilities, oracle manipulation, sandwich attacks, and market volatility. Use at your own risk. Never deploy with funds you cannot afford to lose.**
+Current repo state as of 2026-03-26:
 
----
+- `20` active chains in the production config
+- `23` configured DEX integrations in live stats
+- active dashboard: `frontend/professional-dashboard.html`
+- active web server: `frontend/server-dashboard.js`
+- active bot runtime: `execution_bot/scripts/bot.py`
+- active strategy runtime: `strategy_engine/src/strategy.py`
+- active Render blueprint: `render.yaml`
 
-## 📋 Table of Contents
+This is not a proof of guaranteed profitability. The stack is production-runnable, but live profitability still depends on market conditions, RPC quality, working factory/router data, gas, slippage, and execution success.
 
-- [Architecture](#architecture)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Configuration](#configuration)
-- [Deployment](#deployment)
-- [Monitoring](#monitoring)
-- [Security](#security)
-- [Development](#development)
-- [License](#license)
+## Architecture
 
----
+The live stack is split into three services:
 
-## 🏗️ Architecture
+- Dashboard web service: Node/Express app serving the professional dashboard and APIs
+- Bot worker: Python orchestrator, scanner, execution services
+- Redis / Key Value: shared control plane and telemetry transport
 
-AlphaMark is a distributed arbitrage system composed of multiple microservices:
+Core files:
 
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Strategy      │────▶│   Execution      │────▶│   Monitoring    │
-│   Engine        │     │   Bot            │     │   Dashboard     │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌────────────▼────────────┐
-                    │        Redis           │
-                    │   (Message Broker)     │
-                    └────────────────────────┘
-```
+- [frontend/server-dashboard.js](/c:/Users/op/Desktop/alphamarkA/frontend/server-dashboard.js)
+- [frontend/professional-dashboard.html](/c:/Users/op/Desktop/alphamarkA/frontend/professional-dashboard.html)
+- [execution_bot/scripts/bot.py](/c:/Users/op/Desktop/alphamarkA/execution_bot/scripts/bot.py)
+- [execution_bot/scripts/alpha_engine.py](/c:/Users/op/Desktop/alphamarkA/execution_bot/scripts/alpha_engine.py)
+- [execution_bot/scripts/orchestrator.py](/c:/Users/op/Desktop/alphamarkA/execution_bot/scripts/orchestrator.py)
+- [execution_bot/scripts/executor.py](/c:/Users/op/Desktop/alphamarkA/execution_bot/scripts/executor.py)
+- [strategy_engine/src/strategy.py](/c:/Users/op/Desktop/alphamarkA/strategy_engine/src/strategy.py)
+- [strategy_engine/src/utils.py](/c:/Users/op/Desktop/alphamarkA/strategy_engine/src/utils.py)
+- [config_asset_registry/data/contracts.json](/c:/Users/op/Desktop/alphamarkA/config_asset_registry/data/contracts.json)
 
-### Components
+## Live Coverage
 
-| Component | Technology | Description |
-|-----------|------------|-------------|
-| Strategy Engine | Python | Scans DEXes for arbitrage opportunities |
-| Execution Bot | Python | Executes flash loan transactions |
-| Monitoring Dashboard | Node.js | Real-time UI for system monitoring |
-| Smart Contracts | Solidity | Aave flash loan integration |
+Integrated chains:
 
----
+- `ethereum`
+- `polygon`
+- `bsc`
+- `arbitrum`
+- `optimism`
+- `base`
+- `avalanche`
+- `linea`
+- `scroll`
+- `zksync_era`
+- `blast`
+- `manta_pacific`
+- `mode`
+- `zora`
+- `gnosis`
+- `fantom`
+- `celo`
+- `mantle`
+- `berachain`
+- `sei_evm`
 
-## ✨ Features
+Configured DEX coverage is surfaced live from `/api/stats` under `dexCoverage`.
 
-- **Multi-hop Arbitrage**: Execute complex arbitrage paths across multiple DEXes
-- **Cross-chain Support**: Ethereum, Polygon, BSC, Arbitrum, Optimism
-- **Flash Loans**: Aave V3 integration for capital-efficient trading
-- **Real-time Monitoring**: Professional dashboard with profit tracking
-- **Risk Management**: Liquidity checks, slippage protection, profit thresholds
-- **MEV Protection**: Optional private mempool submission
-- **Gas Optimization**: EIP-1559 support with predictive gas pricing
-- **Auto-Optimization Engine**: Dynamically adjusts scanning intervals based on market volatility and opportunity flow.
-- **Self-Learning System**: Integrates a feedback loop to learn from trade outcomes, continuously improving risk assessment and profitability.
-- **Paper Trading**: Test strategies without real funds
-- **AI Copilot**: GPT-4 powered trading assistant
+Important operational distinction:
 
----
+- Some chains are fully graph-scanning with working static or dynamic graphs
+- Some chains are active only in monitor-first or thin static-graph mode
+- Some chains still degrade due to RPC quality or missing validated factories
 
-## 🚨 PRODUCTION WARNING ⚠️
+## Production Reality
 
-**LIVE TRADING DEFAULT!** Bot starts trading **REAL FUNDS** unless `PAPER_TRADING_MODE=true`.
+What is working now:
 
-**Mandatory Steps Before Any Deploy:**
-1. `.cp .env.example .env` → Fill **ALL** keys (RPCs, keys, contract addr)
-2. Deploy `smart_contracts/FlashLoan.sol` → Testnet → Update `.env`
-3. `docker-compose up` → Verify dashboard + paper trading
-4. Testnet success → Mainnet RPCs → `PAPER_TRADING_MODE=false`
+- Start/stop/pause control from the dashboard
+- live/paper mode propagation through Redis control state
+- measured scan latency in live stats
+- measured RPC latency in live stats
+- per-chain scan diagnostics in live stats
+- `20 / 20` chain coverage in the dashboard
+- `23` configured DEX integrations in the dashboard
 
-## 🔧 Prerequisites
+What is not proven:
 
-- Docker & Docker Compose
+- sustained profitable live execution
+- guaranteed opportunity discovery on every chain
+- guaranteed real profit transfer in every runtime condition
+
+## Local Run
+
+Requirements:
+
+- Docker Desktop or compatible Docker engine
 - Python 3.11+
-- Node.js 18+
-- Ethereum RPC (Alchemy/Infura Free)
-- Redis (Dockerized)
+- Node 18+
+- valid `.env` with real RPCs, wallet, contract, and API keys
 
----
-
-## 🚀 Quick Start
-
-### 1. Clone the Repository
+Start locally:
 
 ```bash
-git clone https://github.com/TemamAb/alpha.git
-cd alpha
+docker compose up -d --build
 ```
 
-### 2. Configure Environment
+Dashboard:
 
-Copy the example environment file and configure your settings:
+- `http://localhost:8080`
 
-```bash
-cp .env.example .env
-# Edit .env with your API keys and configuration
+Health:
+
+- `http://localhost:8080/api/health`
+
+Live stats:
+
+- `http://localhost:8080/api/stats`
+
+## Key APIs
+
+- `GET /api/health`
+- `GET /api/stats`
+- `POST /api/control/start`
+- `POST /api/control/pause`
+- `POST /api/control/stop`
+- `POST /api/bot/update`
+- `GET /api/wallet/balance`
+
+## Render Deployment
+
+Render deployment is now based on a split-service blueprint in [render.yaml](/c:/Users/op/Desktop/alphamarkA/render.yaml):
+
+- `alphamark-dashboard`: Docker web service using [frontend/Dockerfile](/c:/Users/op/Desktop/alphamarkA/frontend/Dockerfile)
+- `alphamark-bot`: Docker worker using [Dockerfile.bot](/c:/Users/op/Desktop/alphamarkA/Dockerfile.bot)
+- `alpha-redis`: Render Key Value service
+
+Required Render secrets:
+
+- `PRIVATE_KEY`
+- `WALLET_ADDRESS`
+- `DEPLOYER_ADDRESS`
+- `PIMLICO_API_KEY`
+- `FLASHLOAN_CONTRACT_ADDRESS`
+- `OPENAI_API_KEY` if Copilot is required
+
+Render worker RPC env vars currently wired in [render.yaml](/c:/Users/op/Desktop/alphamarkA/render.yaml) and expected for live deployment:
+
+- `ETH_RPC_URL`
+- `POLYGON_RPC_URL`
+- `BSC_RPC_URL`
+- `ARBITRUM_RPC_URL`
+- `OPTIMISM_RPC_URL`
+- `BASE_RPC_URL`
+- `AVALANCHE_RPC_URL`
+- `LINEA_RPC_URL`
+- `SCROLL_RPC_URL`
+- `ZORA_RPC_URL`
+- `GNOSIS_RPC_URL`
+- `FANTOM_RPC_URL`
+- `CELO_RPC_URL`
+- `MANTLE_RPC_URL`
+- `BERACHAIN_RPC_URL`
+- `MODE_RPC_URL`
+- `BLAST_RPC_URL`
+- `SEI_RPC_URL`
+
+Additional chains in the top-20 registry such as `zksync_era` and `manta_pacific` are active in the current production config, but their cloud deployment handling may still rely on fallback or monitor-first paths until dedicated env wiring and chain-specific validation are added.
+
+Live mode on Render is controlled with:
+
+```text
+PAPER_TRADING_MODE=false
 ```
 
-### 3. Start with Docker Compose
+## Strategy Notes
 
-```bash
-# Start all services
-docker-compose up -d
+The strategy engine currently supports:
 
-# View logs
-docker-compose logs -f
+- dynamic graph building from V2-style factories where configured
+- static router-based fallback graphs
+- cross-chain monitor-only spread detection
+- dynamic profit thresholds
+- liquidity and ROI filters
+- scan diagnostics by chain
 
-# Stop services
-docker-compose down
-```
+Useful analysis tools:
 
-### 4. Access the Dashboard
+- [analyze_graph_build.py](/c:/Users/op/Desktop/alphamarkA/analyze_graph_build.py)
+- [PRODUCTION_UPGRADE_PLAN_2026-03-26.md](/c:/Users/op/Desktop/alphamarkA/PRODUCTION_UPGRADE_PLAN_2026-03-26.md)
+- [CHAIN_ONBOARDING_CHECKLIST.md](/c:/Users/op/Desktop/alphamarkA/CHAIN_ONBOARDING_CHECKLIST.md)
+- [KPI_COMPARISON.md](/c:/Users/op/Desktop/alphamarkA/KPI_COMPARISON.md)
 
-Open your browser and navigate to:
-- **Dashboard**: http://localhost:3000
-- **Health Check**: http://localhost:3000/api/health
+## Safety
 
----
+This repository can be configured to trade real funds.
 
-## ⚙️ Configuration
+Before any live deployment:
 
-### Environment Variables
+- verify the wallet and private key are correct
+- verify the flash-loan contract address is correct
+- verify per-chain RPC endpoints are not placeholders
+- verify Redis is reachable
+- verify dashboard start controls work as expected
+- verify paper mode first where practical
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `PRIVATE_KEY` | Wallet private key for transactions | Yes |
-| `REDIS_URL` | Redis connection string | Yes |
-| `ETHEREUM_RPC` | Ethereum RPC endpoint | Yes |
-| `OPENAI_API_KEY` | For Alpha-Copilot AI assistant | No |
-| `PAPER_TRADING_MODE` | Set to "true" for simulation | No |
-
-### Supported Chains
-
-The system supports the following EVM chains:
-
-- Ethereum Mainnet
-- Polygon
-- BSC (BNB Chain)
-- Arbitrum
-- Optimism
-- Base
-- Avalanche
-- And more...
-
-### Smart Contract Deployment
-
-Deploy the FlashLoan contract to your target chain:
-
-```bash
-cd smart_contracts
-npm install
-npx hardhat run scripts/deploy.js --network mainnet
-```
-
----
-
-## ☁️ Deployment
-
-### Local Development
-
-```bash
-# Start all services
-docker-compose up -d
-
-# Start with hot reload
-docker-compose up
-```
-
-### Production (Docker)
-
-```bash
-# Build and start
-docker-compose -f docker-compose.yml up -d --build
-
-# Scale the bot service
-docker-compose up -d --scale bot=3
-```
-
-### Fly.io Deployment
-
-**The app runs in LIVE TRADING MODE by default when deployed to fly.io.**
-
-```bash
-# Install flyctl
-curl -L https://fly.io/install.sh | sh
-
-# Login to Fly.io
-fly auth login
-
-# Set required secrets
-fly secrets set PRIVATE_KEY=your_private_key
-fly secrets set PIMLICO_API_KEY=your_pimlico_key
-fly secrets set WALLET_ADDRESS=your_wallet_address
-
-# Launch the app
-fly launch
-
-# Deploy
-fly deploy
-
-# View logs
-fly logs
-```
-
-**Important:**
-- The bot starts in **LIVE TRADING MODE** by default (`PAPER_TRADING_MODE=false`)
-- To switch to paper trading, set the environment variable: `fly secrets set PAPER_TRADING_MODE=true`
-- Gasless transactions are enabled via Pimlico by default
-
-### Manual Deployment
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-cd monitoring_dashboard && npm install && cd ..
-
-# Start Redis
-docker run -d -p 6379:6379 redis:alpine
-
-# Start the bot
-python execution_bot/scripts/bot.py
-
-# Start the dashboard
-cd monitoring_dashboard && npm start
-```
-
----
-
-## 📊 Monitoring
-
-### Dashboard Features
-
-- **Real-time Profit Tracking**: Live P&L updates
-- **Trade History**: Complete audit trail of all transactions
-- **Wallet Management**: Add/remove trading wallets
-- **System Health**: CPU, Memory, Network status
-- **Alpha-Copilot**: AI-powered trading assistant
-- **Engine Control**: Start/Stop/Pause trading engine
-
-### API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/stats` | GET | Get current statistics |
-| `/api/health` | GET | Health check |
-| `/api/control/start` | POST | Start trading |
-| `/api/control/stop` | POST | Emergency stop |
-| `/api/wallet/add` | POST | Add wallet |
-
----
-
-## 🔒 Security
-
-### Best Practices
-
-1. **Never commit private keys** - Use environment variables
-2. **Enable 2FA** on all connected services
-3. **Use hardware wallets** for production funds
-4. **Enable MEV protection** in production
-5. **Monitor alerts** - Set up notifications for unusual activity
-6. **Regular audits** - Review smart contracts regularly
-
-### Security Checklist
-
-- [ ] Private keys stored in secrets manager
-- [ ] RPC endpoints are authenticated
-- [ ] MEV protection enabled
-- [ ] Emergency stop accessible
-- [ ] Wallet backup procedures documented
-- [ ] Insurance coverage obtained (if available)
-
----
-
-## 🛠️ Development
-
-### Running Tests
-
-```bash
-# Python tests
-python -m pytest simulation_backtesting/test_cases/ -v
-
-# Smart contract tests
-cd smart_contracts
-npm test
-```
-
-### Project Structure
-
-```
-alpha/
-├── smart_contracts/       # Solidity contracts
-│   └── FlashLoan.sol
-├── strategy_engine/       # Arbitrage strategy engine
-│   └── src/
-├── execution_bot/          # Transaction executor
-│   └── scripts/
-├── monitoring_dashboard/   # Node.js dashboard
-│   ├── frontend/
-│   └── server-dashboard.js
-├── risk_management/        # Risk checks
-├── market_data_aggregator/ # Price feeds
-├── mempool_mev/          # MEV protection
-└── simulation_backtesting/ # Testing framework
-```
-
----
-
-## 📝 License
-
-MIT License - See [LICENSE](LICENSE) for details.
-
----
-
-## ⚡ Support
-
-- **Documentation**: See [docs/](docs/) folder
-- **Issues**: Open an issue on GitHub
-- **Discord**: Join our community
-
----
-
-**⚠️ Important**: This software is provided "as is" without warranty of any kind. Use at your own risk. Always test thoroughly before deploying with real funds.
+Do not treat dashboard uptime, chain count, or DEX count as proof of profitability.

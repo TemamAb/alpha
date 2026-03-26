@@ -39,6 +39,39 @@ const FALLBACK_TOP_20_CHAINS = [
     'gnosis', 'fantom', 'celo', 'mantle', 'berachain', 'sei_evm'
 ];
 const FALLBACK_DEX_COUNT = 14;
+const LIVE_ENV_REQUIREMENTS = {
+    core: [
+        'PRIVATE_KEY',
+        'WALLET_ADDRESS',
+        'DEPLOYER_ADDRESS',
+        'PIMLICO_API_KEY',
+        'FLASHLOAN_CONTRACT_ADDRESS'
+    ],
+    services: [
+        'REDIS_URL',
+        'OPENAI_API_KEY'
+    ],
+    rpc: [
+        'ETH_RPC_URL',
+        'POLYGON_RPC_URL',
+        'BSC_RPC_URL',
+        'ARBITRUM_RPC_URL',
+        'OPTIMISM_RPC_URL',
+        'BASE_RPC_URL',
+        'AVALANCHE_RPC_URL',
+        'LINEA_RPC_URL',
+        'SCROLL_RPC_URL',
+        'ZORA_RPC_URL',
+        'GNOSIS_RPC_URL',
+        'FANTOM_RPC_URL',
+        'CELO_RPC_URL',
+        'MANTLE_RPC_URL',
+        'BERACHAIN_RPC_URL',
+        'MODE_RPC_URL',
+        'BLAST_RPC_URL',
+        'SEI_RPC_URL'
+    ]
+};
 
 function loadJsonSafe(filePath, fallbackValue) {
     try {
@@ -121,6 +154,43 @@ function buildPerformanceMetrics(stats) {
         tradesPerHourMeasured: trades > 0,
         profitPerHour: totalProfit / elapsedHours,
         profitPerHourMeasured: trades > 0
+    };
+}
+
+function maskEnvValue(key, value) {
+    if (!value) return '';
+    if (key.includes('PRIVATE_KEY') || key.includes('API_KEY')) {
+        return `${value.slice(0, 6)}...${value.slice(-4)}`;
+    }
+    if (key.includes('ADDRESS')) {
+        return `${value.slice(0, 6)}...${value.slice(-4)}`;
+    }
+    if (value.startsWith('http')) {
+        return value.length > 48 ? `${value.slice(0, 40)}...` : value;
+    }
+    return value.length > 24 ? `${value.slice(0, 20)}...` : value;
+}
+
+function getEnvRequirementsSnapshot() {
+    const flatten = Object.entries(LIVE_ENV_REQUIREMENTS).flatMap(([group, keys]) =>
+        keys.map((key) => {
+            const value = process.env[key] || '';
+            return {
+                key,
+                group,
+                requiredForLiveTrading: LIVE_ENV_REQUIREMENTS.core.includes(key) || LIVE_ENV_REQUIREMENTS.rpc.includes(key),
+                present: Boolean(value),
+                maskedValue: maskEnvValue(key, value)
+            };
+        })
+    );
+
+    return {
+        groups: LIVE_ENV_REQUIREMENTS,
+        variables: flatten,
+        missingCore: flatten.filter((item) => item.group === 'core' && !item.present).map((item) => item.key),
+        missingRpc: flatten.filter((item) => item.group === 'rpc' && !item.present).map((item) => item.key),
+        liveReady: flatten.filter((item) => item.group === 'core').every((item) => item.present)
     };
 }
 
@@ -275,6 +345,10 @@ app.get('/api/stats', async (req, res) => {
 app.get('/api/wallet/balance', async (req, res) => {
     const stats = await getBotStats();
     res.json(stats.wallet || {});
+});
+
+app.get('/api/settings/env-requirements', async (req, res) => {
+    res.json(getEnvRequirementsSnapshot());
 });
 
 // POST /api/bot/update
@@ -590,13 +664,46 @@ app.post('/api/settings/upload-env', async (req, res) => {
         fs.writeFileSync(envPath, envContent);
         // ------------------------------
 
+        for (const [key, value] of Object.entries(newConfig)) {
+            process.env[key] = value;
+        }
+
+        if (newConfig.WALLET_ADDRESS) {
+            await redisClient.set('alphamark:active_wallet_address', newConfig.WALLET_ADDRESS);
+        }
+        if (newConfig.WALLET_ADDRESS && newConfig.PRIVATE_KEY) {
+            await redisClient.set(`alphamark:wallet:${newConfig.WALLET_ADDRESS}:private_key`, newConfig.PRIVATE_KEY);
+        }
+
+        const stats = await getBotStats();
+        ensureWalletState(stats);
+        if (newConfig.WALLET_ADDRESS || newConfig.DEPLOYER_ADDRESS) {
+            const walletAddress = newConfig.WALLET_ADDRESS || newConfig.DEPLOYER_ADDRESS;
+            const existingWallet = stats.wallets.find((wallet) => wallet.address === walletAddress);
+            if (!existingWallet) {
+                stats.wallets.unshift({
+                    address: walletAddress,
+                    balance: 0,
+                    mode: stats.wallet?.mode || 'auto',
+                    threshold: Number(stats.wallet?.threshold || 0.01),
+                    enabled: true
+                });
+            }
+            stats.wallet = stats.wallets.find((wallet) => wallet.address === walletAddress) || stats.wallet;
+        }
+        await redisClient.set('alphamark:stats', JSON.stringify(stats));
+
         // Broadcast to Python Bot via Redis
         await redisClient.publish('alphamark:config', JSON.stringify({
             type: 'ENV_UPDATE',
             data: newConfig
         }));
 
-        res.json({ success: true, message: "Configuration uploaded and broadcast to engine." });
+        res.json({
+            success: true,
+            message: "Configuration uploaded and broadcast to engine.",
+            envRequirements: getEnvRequirementsSnapshot()
+        });
     } catch (e) {
         console.error("Env upload failed:", e);
         res.status(500).json({ success: false, message: e.message });
