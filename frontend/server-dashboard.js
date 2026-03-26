@@ -177,8 +177,14 @@ function maskEnvValue(key, value) {
 function getEnvRequirementsSnapshot() {
     const flatten = Object.entries(LIVE_ENV_REQUIREMENTS).flatMap(([group, keys]) =>
         keys.map((key) => {
-            const value = process.env[key] || '';
-            const isReady = Boolean(value && value.length > 0);
+            let value = process.env[key] || '';
+            let isReady = Boolean(value && value.length > 0);
+            
+            // ARCHITECT FIX: Fallback for platform-injected Redis connectivity
+            if (key === 'REDIS_URL' && redisReady) {
+                isReady = true;
+                if (!value) value = "[CONNECTED TO CLUSTER]";
+            }
             
             return {
                 key,
@@ -234,7 +240,7 @@ function defaultStats() {
 let localStats = defaultStats();
 
 // --- Redis Connection ---
-const REDIS_URL = process.env.REDIS_URL;
+const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URL_EXTERNAL || process.env.REDISCLOUD_URL;
 
 if (REDIS_URL) {
     console.log(`[ORCHESTRATOR] Initializing Redis Cluster link: ${REDIS_URL.split('@').pop()}`);
