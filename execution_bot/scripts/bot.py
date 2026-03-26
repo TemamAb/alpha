@@ -110,7 +110,11 @@ def get_model_confidence(opportunity):
     return 0.75 + (len(opportunity.get('path', [])) * 0.05)
 
 # Configuration
-DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:3000")
+# Prefer Render's internal host-port if available
+_internal_host = os.getenv("DASHBOARD_HOSTPORT")
+DASHBOARD_URL = os.getenv("DASHBOARD_URL")
+if not DASHBOARD_URL:
+    DASHBOARD_URL = f"http://{_internal_host}" if _internal_host else "http://localhost:3000"
 REDIS_URL = os.environ.get("REDIS_URL")
 ACTIVE_WALLETS = {}
 MAX_SLIPPAGE = float(os.getenv("MAX_SLIPPAGE", "0.005"))

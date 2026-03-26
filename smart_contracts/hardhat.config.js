@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config({ path: "../.env" });
 
 // For mainnet forking - set FORK_ENABLED=true in .env
 const FORK_URL = process.env.MAINNET_RPC || "https://eth-mainnet.g.alchemy.com/v2/demo";
@@ -11,7 +12,8 @@ module.exports = {
       optimizer: {
         enabled: true,
         runs: 200
-      }
+      },
+      viaIR: true
     }
   },
   networks: {
@@ -57,7 +59,7 @@ module.exports = {
     },
     // Mainnet Networks for Phase 3 Live Trading
     ethereum: {
-      url: process.env.ETHEREUM_RPC || "https://eth-mainnet.g.alchemy.com/v2/demo",
+      url: "https://eth.llamarpc.com",
       chainId: 1,
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
     },
@@ -79,4 +81,3 @@ module.exports = {
     artifacts: "./artifacts"
   }
 };
-

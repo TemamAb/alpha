@@ -65,6 +65,7 @@ app.get('/api/wallet/balance', (req, res) => {
 // Bot reports execution results here
 app.post('/api/bot/update', (req, res) => {
     const update = req.body;
+    console.log(`[BOT UPDATE] ${update.type || 'TRADE'}: ${JSON.stringify(update)}`);
     botStats.trades = (botStats.trades || 0) + 1;
     if (update.success) {
         botStats.wins = (botStats.wins || 0) + 1;

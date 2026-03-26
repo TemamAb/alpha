@@ -1,22 +1,28 @@
 const hre = require("hardhat");
 
 async function main() {
-  // Aave V3 Pool addresses (forked from mainnet/local)
-  const POOL_ADDRESSES = {
-    localethereum: "0x87870Bca3F3fD6335C3F4c8392D7A5D3f4c4C5E",  // Aave V3 Eth
-    localpolygon: "0x794a61358D6845594F94dc1DB02A252b5b4814aD", // Aave V3 Polygon  
-    localbsc: "0x4F628a66Db8a0537D7147bC8Db7d8EA1F5Aa6f6"   // Aave-like BSC
-  };
-
+  // For standalone arbitrage (no Aave dependency), we use treasury address
+  // The contract can receive ETH/tokens directly and execute arbitrage
+  const TREASURY_ADDRESS = "0x0000000000000000000000000000000000000001"; // Replace with real treasury
+  
   const networkName = hre.network.name;
-  const poolAddress = POOL_ADDRESSES[networkName] || "0x87870Bca3F3fD6335C3F4c8392D7A5D3f4c4C5E";
+  const { ethers } = hre;
+  
+  // Explicitly check for signers to prevent "ENS resolution" errors
+  const signers = await ethers.getSigners();
+  const deployer = signers[0];
+
+  if (!deployer) {
+    throw new Error("❌ No signer available! Check your hardhat.config.js accounts or .env file.");
+  }
 
   console.log(`\n🚀 Deploying FlashLoan to ${networkName}`);
-  console.log(`📡 Aave Pool: ${poolAddress}`);
+  console.log(`👤 Deployer: ${deployer.address}`);
+  console.log(`📜 Treasury: ${TREASURY_ADDRESS}`);
 
-  // Deploy FlashLoan contract
+  // Deploy FlashLoan contract with treasury address
   const FlashLoan = await hre.ethers.getContractFactory("FlashLoan");
-  const flashLoan = await FlashLoan.deploy(poolAddress);
+  const flashLoan = await FlashLoan.deploy(TREASURY_ADDRESS);
 
   await flashLoan.waitForDeployment();
 
@@ -31,7 +37,7 @@ async function main() {
     console.log("\n🔍 Verifying on block explorer...");
     await hre.run("verify:verify", {
       address: address,
-      constructorArguments: [poolAddress],
+      constructorArguments: [TREASURY_ADDRESS],
     });
   }
 }
@@ -42,4 +48,3 @@ main()
     console.error(error);
     process.exit(1);
   });
-

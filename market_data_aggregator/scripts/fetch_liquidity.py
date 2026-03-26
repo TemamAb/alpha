@@ -166,16 +166,20 @@ def fetch_liquidity(chain, token):
                 except:
                     decimals = 18 if token != 'USDC' else 6
                 
-                # Calculate liquidity in USD (approximate)
-                # Assuming WETH price ~$3000, WBNB ~$300, WMATIC ~$0.8
-                weth_prices = {
-                    'ethereum': 3000,
-                    'polygon': 0.8,
-                    'bsc': 300,
-                    'arbitrum': 3000,
-                    'optimism': 3000
-                }
-                weth_price = weth_prices.get(chain, 1000)
+                # Get live ETH price dynamically for accurate USD calculation
+                # This ensures simulation runs on real market data, not hardcoded values
+                try:
+                    import sys
+                    import os
+                    # Add project root to path
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    sys.path.insert(0, os.path.join(project_root, 'strategy_engine', 'src'))
+                    from utils import get_live_eth_price
+                    weth_price = get_live_eth_price(chain)
+                except Exception as e:
+                    print(f"[LIQUIDITY] Could not fetch live price for {chain}: {e}")
+                    # Fallback to minimal values to prevent silent failures
+                    weth_price = 1.0
                 
                 # Token value in USD (assuming stablecoins = $1)
                 if token in ['USDC', 'USDT', 'DAI']:
@@ -192,11 +196,8 @@ def fetch_liquidity(chain, token):
         except Exception as e:
             print(f"[LIQUIDITY] Error getting pair: {e}")
         
-        # CRITICAL: Return 0 instead of fake data to prevent trading on incorrect information
-        # This ensures the strategy engine will reject opportunities with unknown liquidity
-        print(f"[LIQUIDITY] SIM MODE for local {chain}: $1M liq")
-        if chain.startswith('local'):
-            return 1000000.0  # $1M sim USD liq for demo arb
+        # CRITICAL: Never return fake data - use live prices or fail loudly
+        # If we can't get real data, return 0 to prevent false arbitrage signals
         print(f"[LIQUIDITY] WARNING: Could not fetch real liquidity for {token} on {chain}. Returning 0 to prevent false signals.")
         return 0.0
         

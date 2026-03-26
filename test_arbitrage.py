@@ -12,6 +12,17 @@ from eth_account import Account
 from datetime import datetime
 import logging
 
+# Load .env file for PRIVATE_KEY
+from pathlib import Path
+env_path = Path(__file__).parent / '.env'
+if env_path.exists():
+    with open(env_path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ[key.strip()] = value.strip()
+
 # Setup path
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "strategy_engine", "src"))
@@ -249,7 +260,8 @@ def main():
         
         # Get private key from environment
         private_key = os.environ.get('PRIVATE_KEY', '')
-        if private_key and len(private_key) == 66:
+        # Accept both 64 (no 0x) and 66 (with 0x) character private keys
+        if private_key and len(private_key) in (64, 66):
             print("\n" + "=" * 60)
             print("ATTEMPTING EXECUTION")
             print("=" * 60)

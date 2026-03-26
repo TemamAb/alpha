@@ -5,11 +5,11 @@ const redis = require('redis');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const dotenv = require('dotenv'); // Ensure dotenv is available for parsing
+const dotenv = require('dotenv');
 
 const app = express();
 app.use(express.json());
-app.use(express.text()); // Allow raw text body for .env uploads
+app.use(express.text()); 
 app.use(express.static(__dirname));
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -22,6 +22,9 @@ const TOP_20_REGISTRY_PATHS = [
     path.join(__dirname, '../config_asset_registry/data/top_20_chain_registry.json'),
     path.join(__dirname, 'config_asset_registry/data/top_20_chain_registry.json')
 ];
+
+let redisClient = null;
+let redisSubscriber = null;
 let redisReady = false;
 
 // Serve dashboard
@@ -198,35 +201,89 @@ function getEnvRequirementsSnapshot() {
 const hasOpenAI = !!process.env.OPENAI_API_KEY;
 console.log(`[CONFIG] OpenAI API Key detected: ${hasOpenAI ? 'YES (Active)' : 'NO (Copilot Disabled)'}`);
 
+function defaultStats() {
+    const defaultWalletAddress = process.env.WALLET_ADDRESS || process.env.DEPLOYER_ADDRESS || '';
+    const defaultWallet = {
+        balance: 0,
+        mode: 'auto',
+        threshold: 0.01,
+        address: defaultWalletAddress,
+        enabled: true
+    };
+
+    return {
+        totalProfit: 0,
+        dailyProfit: 0,
+        winRate: 0,
+        wins: 0,
+        trades: 0,
+        activeOpps: 0,
+        wallets: defaultWalletAddress ? [defaultWallet] : [],
+        recentTrades: [],
+        paperTradingMode: process.env.PAPER_TRADING_MODE !== 'false',
+        wallet: defaultWallet,
+        sessionStart: Date.now(),
+        lastUpdate: Date.now()
+    };
+}
+
+// --- Persistent In-Memory State (Enterprise-Grade Fallback) ---
+// This ensures the dashboard stays alive even if the Key-Value store is down.
+let localStats = defaultStats();
+
 // --- Redis Connection ---
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const redisClient = redis.createClient({ url: REDIS_URL });
-const redisSubscriber = redisClient.duplicate();
+const REDIS_URL = process.env.REDIS_URL;
 
-redisClient.on('error', (err) => console.error('Redis Client Error', err));
-redisSubscriber.on('error', (err) => console.error('Redis Subscriber Error', err));
+if (REDIS_URL) {
+    console.log(`[ORCHESTRATOR] Initializing Redis Cluster link: ${REDIS_URL.split('@').pop()}`);
+    redisClient = redis.createClient({ url: REDIS_URL });
+    redisSubscriber = redisClient.duplicate();
 
-(async () => {
-    try {
-        await redisClient.connect();
-        await redisSubscriber.connect();
-        redisReady = true;
-        console.log('[REDIS] Connected to Redis');
+    redisClient.on('error', (err) => {
+        if (!redisReady) {
+            console.warn('[REDIS] Handshake notice (awaiting service):', err.message);
+        } else {
+            console.error('[REDIS] Global runtime error:', err.message);
+        }
+    });
 
-        // Subscribe to updates from Python bot
-        await redisSubscriber.subscribe('alphamark:updates', (message) => {
-            // Broadcast updates to all connected WebSocket clients
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(message);
-                }
+    (async () => {
+        try {
+            await redisClient.connect();
+            await redisSubscriber.connect();
+            
+            // Sync initial state from Redis if available
+            const stored = await redisClient.get('alphamark:stats');
+            if (stored) {
+                localStats = JSON.parse(stored);
+                console.log('[REDIS] State synchronized from cluster persistence.');
+            }
+            
+            redisReady = true;
+            console.log('[REDIS] Cluster link ESTABLISHED. Real-time telemetry ACTIVE.');
+
+            // Subscriptions
+            await redisSubscriber.subscribe('alphamark:updates', (message) => {
+                const data = JSON.parse(message);
+                localStats = data; // Keep local copy in sync
+                broadcastToClients(data);
             });
-        });
-    } catch (err) {
-        redisReady = false;
-        console.error('[REDIS] Startup connection failed', err);
-    }
-})();
+        } catch (err) {
+            redisReady = false;
+            console.warn('[REDIS] CONNECTION REFUSED. Reverting to STANDALONE mode.');
+        }
+    })();
+} else {
+    console.warn('[CONFIG] NO REDIS_URL. System entering STANDALONE node (Local tracking only).');
+}
+
+function broadcastToClients(data) {
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(typeof data === 'string' ? data : JSON.stringify(data));
+        }
+    });
+}
 
 function defaultStats() {
     const defaultWalletAddress = process.env.WALLET_ADDRESS || process.env.DEPLOYER_ADDRESS || '';
@@ -249,7 +306,8 @@ function defaultStats() {
         recentTrades: [],
         paperTradingMode: process.env.PAPER_TRADING_MODE !== 'false',
         wallet: defaultWallet,
-        sessionStart: Date.now()
+        sessionStart: Date.now(),
+        lastUpdate: Date.now()
     };
 }
 
@@ -297,34 +355,57 @@ function getActiveWallet(stats) {
     return stats.wallets.find((wallet) => wallet.enabled !== false) || stats.wallet;
 }
 
-// Helper to fetch current stats from Redis
+// Helper to fetch current stats with robust fallback
 async function getBotStats() {
-    if (!redisReady || !redisClient.isOpen) {
-        const stats = ensureWalletState(defaultStats());
-        stats.engineStatus = 'STOPPED';
-        stats.currentMode = stats.paperTradingMode ? 'paper' : 'live';
-        return stats;
-    }
-
-    let stats = defaultStats();
-    const statsStr = await redisClient.get('alphamark:stats');
-    if (statsStr) {
-        stats = { ...stats, ...JSON.parse(statsStr) };
-    }
-
-    const runtimeMode = await redisClient.get('alphamark:mode');
-    if (runtimeMode === 'paper' || runtimeMode === 'live') {
-        stats.paperTradingMode = runtimeMode === 'paper';
+    let stats = ensureWalletState(localStats);
+    
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            const statsStr = await redisClient.get('alphamark:stats');
+            if (statsStr) {
+                stats = { ...stats, ...JSON.parse(statsStr) };
+            }
+            
+            const runtimeMode = await redisClient.get('alphamark:mode');
+            if (runtimeMode === 'paper' || runtimeMode === 'live') {
+                stats.paperTradingMode = runtimeMode === 'paper';
+            }
+            stats.engineStatus = await redisClient.get('alphamark:status') || 'STOPPED';
+            stats.redisStatus = 'connected';
+        } catch (err) {
+            stats.redisStatus = 'error';
+        }
     } else {
-        stats.paperTradingMode = process.env.PAPER_TRADING_MODE !== 'false';
+        stats.engineStatus = stats.engineStatus || 'STOPPED';
+        stats.redisStatus = 'disconnected';
     }
-    stats.engineStatus = await redisClient.get('alphamark:status') || 'STOPPED';
+
     stats.currentMode = stats.paperTradingMode ? 'paper' : 'live';
     stats.chainCoverage = getChainCoverage();
     stats.dexCoverage = getDexCoverage();
     stats.performanceMetrics = buildPerformanceMetrics(stats);
     
-    return ensureWalletState(stats);
+    localStats = stats; // Cache latest
+    return stats;
+}
+
+// Global persistence helper
+async function persistStats(stats) {
+    localStats = stats;
+    broadcastToClients(stats);
+    
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            await persistStats(stats);
+            if (redisReady && redisClient && redisClient.isOpen) {
+            try {
+                await redisClient.publish('alphamark:updates', JSON.stringify(stats));
+            } catch (err) {}
+        }
+        } catch (err) {
+            console.warn('[REDIS] Persistence failed:', err.message);
+        }
+    }
 }
 
 // --- API Endpoints ---
@@ -354,22 +435,18 @@ app.get('/api/settings/env-requirements', async (req, res) => {
 // POST /api/bot/update
 // Receives real-time execution telemetry from the Python Bot
 app.post('/api/bot/update', async (req, res) => {
-    const update = req.body; // { success, profit, loss, chain, txHash, timestamp }
+    const update = req.body; 
     const stats = await getBotStats();
     
-    // HANDLE HEARTBEATS: Update scanning stats but DO NOT count as a trade
     if (update.type === 'HEARTBEAT') {
         if (update.activeOpps !== undefined) stats.activeOpps = update.activeOpps;
         if (update.performanceMetrics) stats.performanceMetrics = update.performanceMetrics;
-        // We can add a 'lastHeartbeat' timestamp here to track bot health
         stats.lastUpdate = Date.now();
         stats.performanceMetrics = buildPerformanceMetrics(stats);
-        await redisClient.set('alphamark:stats', JSON.stringify(stats));
-        await redisClient.publish('alphamark:updates', JSON.stringify(stats));
+        await persistStats(stats);
         return res.json({ success: true });
     }
     
-    // Update Aggregates
     stats.trades = (stats.trades || 0) + 1;
     if (update.success) {
         const realizedProfit = parseFloat(update.profit || 0);
@@ -387,17 +464,11 @@ app.post('/api/bot/update', async (req, res) => {
     if (update.performanceMetrics) stats.performanceMetrics = update.performanceMetrics;
     stats.performanceMetrics = buildPerformanceMetrics(stats);
     
-    // Update Recent Trades History (Keep last 15 for AI Context)
     if (!stats.recentTrades) stats.recentTrades = [];
     stats.recentTrades.unshift(update);
     if (stats.recentTrades.length > 15) stats.recentTrades.pop();
     
-    // Persist to Redis
-    await redisClient.set('alphamark:stats', JSON.stringify(stats));
-    
-    // Broadcast to Frontend via WebSocket (handled by Redis subscriber)
-    await redisClient.publish('alphamark:updates', JSON.stringify(stats));
-    
+    await persistStats(stats);
     res.json({ success: true });
 });
 
@@ -433,7 +504,7 @@ app.post('/api/wallet/add', async (req, res) => {
         botStats.wallet = newWallet;
     }
     
-    await redisClient.set('alphamark:stats', JSON.stringify(botStats));
+    await persistStats(botStats);
     if (privateKey) {
         await redisClient.set(`alphamark:wallet:${address}:private_key`, privateKey);
         await redisClient.set('alphamark:active_wallet_address', address);
@@ -464,18 +535,25 @@ app.post('/api/wallet/remove', async (req, res) => {
              botStats.wallet = { balance: 0, mode: 'auto', threshold: 0.01, address: '' };
         }
         
-        await redisClient.set('alphamark:stats', JSON.stringify(botStats));
-        await redisClient.del(`alphamark:wallet:${address}:private_key`);
-        if (botStats.wallet?.address) {
-            await redisClient.set('alphamark:active_wallet_address', botStats.wallet.address);
-        } else {
-            await redisClient.del('alphamark:active_wallet_address');
-        }
+        await persistStats(botStats);
         
-        await redisClient.publish('alphamark:config', JSON.stringify({ 
-            type: 'WALLET_REMOVE', 
-            data: { address } 
-        }));
+        if (redisReady && redisClient && redisClient.isOpen) {
+            try {
+                await redisClient.del(`alphamark:wallet:${address}:private_key`);
+                if (botStats.wallet?.address) {
+                    await redisClient.set('alphamark:active_wallet_address', botStats.wallet.address);
+                } else {
+                    await redisClient.del('alphamark:active_wallet_address');
+                }
+                
+                await redisClient.publish('alphamark:config', JSON.stringify({ 
+                    type: 'WALLET_REMOVE', 
+                    data: { address } 
+                }));
+            } catch (err) {
+                console.warn('[REDIS] Wallet removal cleanup failed:', err.message);
+            }
+        }
     }
     
     res.json({ success: true });
@@ -490,12 +568,18 @@ app.post('/api/wallet/toggle', async (req, res) => {
         const wallet = botStats.wallets.find(w => w.address === address);
         if (wallet) {
             wallet.enabled = enabled;
-            await redisClient.set('alphamark:stats', JSON.stringify(botStats));
+            await persistStats(botStats);
             
-            await redisClient.publish('alphamark:config', JSON.stringify({ 
-                type: 'WALLET_TOGGLE', 
-                data: { address, enabled } 
-            }));
+            if (redisReady && redisClient && redisClient.isOpen) {
+                try {
+                    await redisClient.publish('alphamark:config', JSON.stringify({ 
+                        type: 'WALLET_TOGGLE', 
+                        data: { address, enabled } 
+                    }));
+                } catch (err) {
+                    console.warn('[REDIS] Wallet toggle sync failed:', err.message);
+                }
+            }
             console.log(`[WALLET] Wallet ${address} ${enabled ? 'enabled' : 'disabled'}`);
         }
     }
@@ -514,13 +598,18 @@ app.post('/api/wallet/mode', async (req, res) => {
     if (threshold) botStats.wallet.threshold = parseFloat(threshold);
     if (address) botStats.wallet.address = address;
     
-    await redisClient.set('alphamark:stats', JSON.stringify(botStats));
-    if (botStats.wallet.address) {
-        await redisClient.set('alphamark:active_wallet_address', botStats.wallet.address);
-    }
+    await persistStats(botStats);
     
-    // Notify Python bot of config change via PubSub
-    await redisClient.publish('alphamark:config', JSON.stringify({ type: 'WALLET_UPDATE', data: botStats.wallet }));
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            if (botStats.wallet.address) {
+                await redisClient.set('alphamark:active_wallet_address', botStats.wallet.address);
+            }
+            await redisClient.publish('alphamark:config', JSON.stringify({ type: 'WALLET_UPDATE', data: botStats.wallet }));
+        } catch (err) {
+            console.warn('[REDIS] Wallet mode sync failed:', err.message);
+        }
+    }
 
     console.log(`[WALLET] Config updated: ${mode}, ${threshold} ETH, ${address}`);
     res.json({ success: true, wallet: botStats.wallet });
@@ -564,14 +653,20 @@ app.post('/api/withdraw', async (req, res) => {
         return res.json({ success: true, withdrawn: amount, address: activeWallet.address, mode: 'paper' });
     }
     
-    await redisClient.publish('alphamark:control', JSON.stringify({ 
-        command: 'WITHDRAW', 
-        amount: amount, 
-        address: activeWallet.address 
-    }));
-
-    console.log(`[WALLET] Withdrawal requested for ${amount} ETH`);
-    res.json({ success: true, message: 'Withdrawal requested', amount, address: activeWallet.address, mode: 'live' });
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            await redisClient.publish('alphamark:control', JSON.stringify({ 
+                command: 'WITHDRAW', 
+                amount: amount, 
+                address: activeWallet.address 
+            }));
+            console.log(`[WALLET] Withdrawal requested for ${amount} ETH`);
+            return res.json({ success: true, message: 'Withdrawal requested', amount, address: activeWallet.address, mode: 'live' });
+        } catch (err) {
+            console.error('[REDIS] Withdrawal publish failed:', err);
+        }
+    }
+    res.status(503).json({ success: false, message: 'Redis unavailable. Withdrawal command failed.' });
 });
 
 // POST /api/control/start
@@ -588,46 +683,56 @@ app.post('/api/control/start', async (req, res) => {
         if (!activeWallet?.address) {
             return res.status(400).json({ success: false, message: 'Configure a wallet before starting live trading' });
         }
-        const runtimePrivateKey = await redisClient.get(`alphamark:wallet:${activeWallet.address}:private_key`);
-        if (!runtimePrivateKey && !process.env.PRIVATE_KEY) {
-            return res.status(400).json({ success: false, message: 'No signing key available for live trading' });
+        
+        if (redisReady && redisClient && redisClient.isOpen) {
+            try {
+                const runtimePrivateKey = await redisClient.get(`alphamark:wallet:${activeWallet.address}:private_key`);
+                if (!runtimePrivateKey && !process.env.PRIVATE_KEY) {
+                    return res.status(400).json({ success: false, message: 'No signing key available for live trading' });
+                }
+                await redisClient.set('alphamark:active_wallet_address', activeWallet.address);
+            } catch (err) {
+                return res.status(503).json({ success: false, message: 'Redis communication failure during live init' });
+            }
         }
-        await redisClient.set('alphamark:active_wallet_address', activeWallet.address);
     }
     
-    // Update env var simulation for the session
     process.env.PAPER_TRADING_MODE = isPaper ? 'true' : 'false';
 
-    await redisClient.del('alphamark:kill_switch');
-    await redisClient.set('alphamark:status', 'RUNNING');
-    await redisClient.set('alphamark:mode', mode);
-    await redisClient.publish('alphamark:control', JSON.stringify({ 
-        command: 'START',
-        mode: mode 
-    }));
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            await redisClient.del('alphamark:kill_switch');
+            await redisClient.set('alphamark:status', 'RUNNING');
+            await redisClient.set('alphamark:mode', mode);
+            await redisClient.publish('alphamark:control', JSON.stringify({ command: 'START', mode }));
+        } catch (err) {}
+    }
     
     const modeLog = isPaper ? 'PAPER TRADING' : 'LIVE TRADING';
     console.log(`[ENGINE] Started in ${modeLog} mode`);
-    
-    res.json({ success: true, status: 'RUNNING', mode: mode });
+    res.json({ success: true, status: 'RUNNING', mode });
 });
 
-// POST /api/control/pause
 app.post('/api/control/pause', async (req, res) => {
-    await redisClient.set('alphamark:status', 'PAUSED');
-    await redisClient.publish('alphamark:control', JSON.stringify({ command: 'PAUSE' }));
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            await redisClient.set('alphamark:status', 'PAUSED');
+            await redisClient.publish('alphamark:control', JSON.stringify({ command: 'PAUSE' }));
+        } catch (err) {}
+    }
     console.log('[ENGINE] Paused');
     res.json({ success: true, status: 'PAUSED' });
 });
 
-// POST /api/control/stop
 app.post('/api/control/stop', async (req, res) => {
-    await redisClient.set('alphamark:status', 'STOPPED');
-    await redisClient.publish('alphamark:control', JSON.stringify({ command: 'STOP' }));
-    // Set the kill switch key that the Python bot is listening for
-    await redisClient.set('alphamark:kill_switch', 'true');
-    
-    console.log('[ENGINE] Emergency Stop Triggered!');
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            await redisClient.set('alphamark:status', 'STOPPED');
+            await redisClient.publish('alphamark:control', JSON.stringify({ command: 'STOP' }));
+            await redisClient.set('alphamark:kill_switch', 'true');
+        } catch (err) {}
+    }
+    console.log('[ENGINE] EMERGENCY STOP Triggered!');
     res.json({ success: true, status: 'STOPPED' });
 });
 
@@ -691,7 +796,7 @@ app.post('/api/settings/upload-env', async (req, res) => {
             }
             stats.wallet = stats.wallets.find((wallet) => wallet.address === walletAddress) || stats.wallet;
         }
-        await redisClient.set('alphamark:stats', JSON.stringify(stats));
+        await persistStats(stats);
 
         // Broadcast to Python Bot via Redis
         await redisClient.publish('alphamark:config', JSON.stringify({
@@ -798,11 +903,24 @@ Keep responses concise for a dashboard sidebar. Use Markdown.
 
 // Health Check
 app.get('/api/health', async (req, res) => {
-    if (!redisReady || !redisClient.isOpen) {
-        return res.status(503).json({ status: 'error', engine: 'STOPPED', message: 'Redis disconnected' });
+    const health = {
+        status: 'ok',
+        timestamp: Date.now(),
+        redis: redisReady ? 'connected' : 'disconnected',
+        mode: process.env.PAPER_TRADING_MODE === 'true' ? 'paper' : 'live'
+    };
+    
+    if (redisReady && redisClient && redisClient.isOpen) {
+        try {
+            health.engine = await redisClient.get('alphamark:status') || 'STOPPED';
+        } catch (err) {
+            health.engine = 'ERROR';
+        }
+    } else {
+        health.engine = 'STANDALONE';
     }
-    const engineStatus = await redisClient.get('alphamark:status') || 'STOPPED';
-    res.json({ status: 'ok', engine: engineStatus, timestamp: Date.now() });
+    
+    res.json(health);
 });
 
 // Start Server

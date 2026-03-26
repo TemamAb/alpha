@@ -99,7 +99,7 @@ contract TokenMulticall is Multicall {
      * @param holders Array of holder addresses
      * @return balances Array of balances
      */
-    function getTokenBalances(address[] memory tokens, address[] memory holders) public view returns (uint256[] memory balances) {
+    function getTokenBalances(address[] memory tokens, address[] memory holders) public returns (uint256[] memory balances) {
         require(tokens.length == holders.length, "Length mismatch");
         
         balances = new uint256[](tokens.length);
@@ -130,7 +130,7 @@ contract TokenMulticall is Multicall {
      * @param tokens Array of token addresses
      * @return decimalsArray Array of decimals
      */
-    function getTokenDecimals(address[] memory tokens) public view returns (uint8[] memory decimalsArray) {
+    function getTokenDecimals(address[] memory tokens) public returns (uint8[] memory decimalsArray) {
         decimalsArray = new uint8[](tokens.length);
         Call[] memory calls = new Call[](tokens.length);
         

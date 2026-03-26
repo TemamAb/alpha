@@ -179,8 +179,9 @@ class BatchRPCCall:
     Uses JSON-RPC batch requests for similar efficiency.
     """
     
-    def __init__(self, w3: Web3):
+    def __init__(self, w3: Web3, chain_name: str = "N/A"):
         self.w3 = w3
+        self.chain_name = chain_name
         self.session = w3.provider
         
     def batch_call(self, calls: List[Dict]) -> List[Any]:
@@ -211,26 +212,39 @@ class BatchRPCCall:
             request_id += 1
         
         try:
-            # Use the provider's request method
-            response = self.w3.provider.make_request(method="", params=requests)
+            import requests as py_requests
+            # Manually send the JSON-RPC batch request to bypass provider limitations
+            endpoint = self.w3.provider.endpoint_uri
             
-            if isinstance(response, list):
-                return [r.get("result") for r in response]
+            response = py_requests.post(
+                endpoint,
+                json=requests,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            response.raise_for_status()
+            batch_data = response.json()
+            
+            if isinstance(batch_data, list):
+                # Sort by ID to ensure order matches calls
+                sorted_results = sorted(batch_data, key=lambda r: r.get('id', 0))
+                return [r.get("result") for r in sorted_results]
             return []
             
         except Exception as e:
-            logger.error(f"Batch RPC call failed: {e}")
-            return [] * len(calls)
+            logger.error(f"Batch RPC call failed: {e}", extra={"chain": self.chain_name})
+            return [None] * len(calls)
 
 
 # Factory function to get appropriate multicaller
-def get_multicaller(w3: Web3, use_contract: bool = True):
+def get_multicaller(w3: Web3, use_contract: bool = True, chain_name: str = "N/A"):
     """
     Get a multicaller instance.
     
     Args:
         w3: Web3 instance
         use_contract: If True, use Multicall2 contract. If False, use RPC batching.
+        chain_name: Name of the chain for logging
         
     Returns:
         MulticallClient or BatchRPCCall instance
@@ -242,12 +256,12 @@ def get_multicaller(w3: Web3, use_contract: bool = True):
             if len(code) > 2:
                 return MulticallClient(w3)
             else:
-                logger.warning("Multicall2 not deployed, falling back to RPC batching")
-                return BatchRPCCall(w3)
+                logger.warning("Multicall2 not deployed, falling back to RPC batching", extra={"chain": chain_name})
+                return BatchRPCCall(w3, chain_name=chain_name)
         except:
-            return BatchRPCCall(w3)
+            return BatchRPCCall(w3, chain_name=chain_name)
     else:
-        return BatchRPCCall(w3)
+        return BatchRPCCall(w3, chain_name=chain_name)
 
 
 # Example usage for strategy engine optimization
