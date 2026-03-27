@@ -279,7 +279,6 @@ async function initRedisBridge(url) {
     const redisOptions = {
         url: url,
         socket: {
-            tls: true,
             connectTimeout: 30000,
             family: 0,
             keepAlive: 30000
