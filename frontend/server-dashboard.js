@@ -192,10 +192,10 @@ function getEnvRequirementsSnapshot() {
             let value = process.env[key] || '';
             let isReady = Boolean(value && value.length > 0);
             
-            // ARCHITECT FIX: Fallback for platform-injected Redis connectivity
-            if (key === 'REDIS_URL' && redisReady) {
-                isReady = true;
-                if (!value) value = "[CONNECTED TO CLUSTER]";
+            // ARCHITECT FIX: Redis READY status requires active socket connection
+            if (key === 'REDIS_URL') {
+                isReady = redisReady;
+                if (redisReady && !value) value = "[CONNECTED TO CLUSTER]";
             }
             
             return {
@@ -251,13 +251,33 @@ function defaultStats() {
 // This ensures the dashboard stays alive even if the Key-Value store is down.
 let localStats = defaultStats();
 
-// --- Redis Connection ---
-const REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URL_EXTERNAL || process.env.REDISCLOUD_URL;
-
-if (REDIS_URL) {
-    console.log(`[ORCHESTRATOR] Initializing Redis Cluster link: ${REDIS_URL.split('@').pop()}`);
+// Re-connect to Redis using the provided URL
+async function initRedisBridge(url) {
+    if (!url) {
+        console.warn('[REDIS] No REDIS_URL provided. System entering STANDALONE node (Local tracking only).');
+        redisReady = false;
+        if (redisClient && redisClient.isOpen) {
+            try { await redisClient.disconnect(); } catch (e) { console.warn('[REDIS] Error disconnecting old client:', e.message); }
+        }
+        if (redisSubscriber && redisSubscriber.isOpen) {
+            try { await redisSubscriber.disconnect(); } catch (e) { console.warn('[REDIS] Error disconnecting old subscriber:', e.message); }
+        }
+        redisClient = undefined;
+        redisSubscriber = undefined;
+        return;
+    }
+    
+    // Close existing client if any
+    if (redisClient && redisClient.isOpen) {
+        try { await redisClient.disconnect(); } catch (e) { console.warn('[REDIS] Error disconnecting old client:', e.message); }
+    }
+    if (redisSubscriber && redisSubscriber.isOpen) {
+        try { await redisSubscriber.disconnect(); } catch (e) { console.warn('[REDIS] Error disconnecting old subscriber:', e.message); }
+    }
+    
+    console.log(`[ORCHESTRATOR] Initializing Redis Cluster link: ${url.split('@').pop()}`);
     const redisOptions = {
-        url: REDIS_URL,
+        url: url,
         socket: {
             tls: true,
             connectTimeout: 30000,
@@ -296,34 +316,50 @@ if (REDIS_URL) {
         }
     });
 
-    (async () => {
-        try {
-            await redisClient.connect();
-            await redisSubscriber.connect();
-            
-            // Sync initial state from Redis if available
-            const stored = await redisClient.get('alphamark:stats');
-            if (stored) {
-                localStats = JSON.parse(stored);
-                console.log('[REDIS] State synchronized from cluster persistence.');
-            }
-            
-            redisReady = true;
-            console.log('[REDIS] Cluster link ESTABLISHED. Real-time telemetry ACTIVE.');
-
-            // Subscriptions
-            await redisSubscriber.subscribe('alphamark:updates', (message) => {
-                const data = JSON.parse(message);
-                localStats = data; // Keep local copy in sync
-                broadcastToClients(data);
-            });
-        } catch (err) {
-            redisReady = false;
-            console.warn('[REDIS] CONNECTION REFUSED. Reverting to STANDALONE mode.');
+    try {
+        await redisClient.connect();
+        await redisSubscriber.connect();
+        
+        // Sync initial state from Redis if available
+        const stored = await redisClient.get('alphamark:stats');
+        if (stored) {
+            localStats = JSON.parse(stored);
+            console.log('[REDIS] State synchronized from cluster persistence.');
         }
-    })();
-} else {
-    console.warn('[CONFIG] NO REDIS_URL. System entering STANDALONE node (Local tracking only).');
+        
+        redisReady = true;
+        console.log('[REDIS] Cluster link ESTABLISHED. Real-time telemetry ACTIVE.');
+
+        // Broadcast arrival
+        await redisClient.publish('alphamark:telemetry', JSON.stringify({ 
+            type: 'DASHBOARD_UP', 
+            timestamp: Date.now() 
+        }));
+
+        // Subscriptions
+        await redisSubscriber.subscribe('alphamark:updates', (message) => {
+            const data = JSON.parse(message);
+            localStats = data; // Keep local copy in sync
+            broadcastToClients(data);
+        });
+    } catch (err) {
+        redisReady = false;
+        console.warn('[REDIS] CONNECTION REFUSED. Reverting to STANDALONE mode.');
+        if (redisClient && redisClient.isOpen) {
+            try { await redisClient.disconnect(); } catch (e) {}
+        }
+        if (redisSubscriber && redisSubscriber.isOpen) {
+            try { await redisSubscriber.disconnect(); } catch (e) {}
+        }
+        redisClient = undefined;
+        redisSubscriber = undefined;
+    }
+}
+
+// Initial connection
+const INITIAL_REDIS_URL = process.env.REDIS_URL || process.env.REDIS_URL_EXTERNAL || process.env.REDISCLOUD_URL;
+if (INITIAL_REDIS_URL) {
+    initRedisBridge(INITIAL_REDIS_URL);
 }
 
 function broadcastToClients(data) {
@@ -550,15 +586,23 @@ app.post('/api/wallet/add', async (req, res) => {
     
     await persistStats(botStats);
     if (privateKey) {
-        await redisClient.set(`alphamark:wallet:${address}:private_key`, privateKey);
-        await redisClient.set('alphamark:active_wallet_address', address);
+        if (redisReady && redisClient && redisClient.isOpen) {
+            await redisClient.set(`alphamark:wallet:${address}:private_key`, privateKey);
+            await redisClient.set('alphamark:active_wallet_address', address);
+        } else {
+            console.warn('[REDIS] Redis not ready, cannot persist private key or active wallet address.');
+        }
     }
     
     // Send sensitive data securely via PubSub to the bot
-    await redisClient.publish('alphamark:config', JSON.stringify({ 
-        type: 'WALLET_ADD', 
-        data: { address, privateKey } 
-    }));
+    if (redisReady && redisClient && redisClient.isOpen) {
+        await redisClient.publish('alphamark:config', JSON.stringify({ 
+            type: 'WALLET_ADD', 
+            data: { address, privateKey } 
+        }));
+    } else {
+        console.warn('[REDIS] Redis not ready, cannot publish wallet add config.');
+    }
 
     console.log(`[WALLET] Added new wallet: ${address}`);
     res.json({ success: true, wallets: botStats.wallets });
@@ -690,8 +734,12 @@ app.post('/api/withdraw', async (req, res) => {
         });
         if (botStats.recentTrades.length > 15) botStats.recentTrades.pop();
 
-        await redisClient.set('alphamark:stats', JSON.stringify(botStats));
-        await redisClient.publish('alphamark:updates', JSON.stringify(botStats));
+        if (redisReady && redisClient && redisClient.isOpen) {
+            await redisClient.set('alphamark:stats', JSON.stringify(botStats));
+            await redisClient.publish('alphamark:updates', JSON.stringify(botStats));
+        } else {
+            console.warn('[REDIS] Redis not ready, cannot persist or publish simulated withdrawal.');
+        }
 
         console.log(`[WALLET] Simulated withdrawal of ${amount} ETH to ${activeWallet.address}`);
         return res.json({ success: true, withdrawn: amount, address: activeWallet.address, mode: 'paper' });
@@ -753,15 +801,11 @@ app.post('/api/control/start', async (req, res) => {
              return res.status(503).json({ success: false, message: 'Redis cluster synchronization failed.' });
         }
     } else {
-        // PRODUCTION BYPASS for Render validation: Allow live if core env present
-        if (getEnvRequirementsSnapshot().liveReady) {
-            console.warn('[ORCHESTRATOR] Redis DOWN - LIVE allowed (core env OK)');
-            // Still log warning, but allow for profit demo
-            process.env.PAPER_TRADING_MODE = isPaper ? 'true' : 'false';
-            return res.json({ success: true, status: 'RUNNING (BRIDGE DOWN)', mode, warning: 'Redis unavailable - check logs' });
-        }
-        console.error('[ORCHESTRATOR] LIVE BLOCKED: Core env missing + Redis down.');
-        return res.status(503).json({ success: false, message: 'ORCHESTRATION BRIDGE DOWN + CORE ENV MISSING' });
+        // ENFORCE REDIS: Standalone mode cannot execute live commands
+        return res.status(503).json({ 
+            success: false, 
+            message: 'ORCHESTRATION BRIDGE DOWN: Cannot reach bot without Redis connection.' 
+        });
     }
     
     const modeLog = isPaper ? 'PAPER TRADING' : 'LIVE TRADING';
@@ -835,6 +879,12 @@ app.post('/api/settings/upload-env', async (req, res) => {
             // ONLY OVERWRITE IF VALUE IS NOT EMPTY: Prevents clearing platform-injected vars like REDIS_URL
             if (value && value.trim() !== '') {
                 process.env[key] = value;
+                
+                // If REDIS_URL updated, re-init the bridge immediately
+                if (key === 'REDIS_URL') {
+                    await initRedisBridge(value);
+                }
+
                 // SYNC TO REDIS: Ensure distributed components (bot) see these updates
                 if (redisReady && redisClient && redisClient.isOpen) {
                     await redisClient.hSet('alphamark:env', key, value);

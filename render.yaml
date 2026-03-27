@@ -19,6 +19,11 @@ services:
           type: keyvalue
           name: alpha-redis
           property: connectionString
+      - key: REDIS_URL_EXTERNAL
+        fromService:
+          type: keyvalue
+          name: alpha-redis
+          property: connectionString
       - key: OPENAI_API_KEY
         sync: false
       - key: PRIVATE_KEY
@@ -28,6 +33,8 @@ services:
       - key: DEPLOYER_ADDRESS
         sync: false
       - key: PIMLICO_API_KEY
+        sync: false
+      - key: FLASHLOAN_CONTRACT_ADDRESS
         sync: false
 
   - type: worker
