@@ -238,6 +238,7 @@ function defaultStats() {
         wins: 0,
         trades: 0,
         activeOpps: 0,
+        engineStatus: 'RUNNING',
         wallets: defaultWalletAddress ? [defaultWallet] : [],
         recentTrades: [],
         paperTradingMode: process.env.PAPER_TRADING_MODE !== 'false',
@@ -281,7 +282,8 @@ async function initRedisBridge(url) {
         socket: {
             connectTimeout: 30000,
             family: 0,
-            keepAlive: 30000
+            keepAlive: 30000,
+            tls: true
         },
         connectTimeout: 30000,
         commandTimeout: 5000,
@@ -335,6 +337,16 @@ async function initRedisBridge(url) {
             timestamp: Date.now() 
         }));
 
+        // AUTO-START PROTOCOL: Ensure engine is running without user input
+        const currentStatus = await redisClient.get('alphamark:status');
+        if (currentStatus !== 'RUNNING') {
+            const mode = process.env.PAPER_TRADING_MODE === 'true' ? 'paper' : 'live';
+            await redisClient.set('alphamark:status', 'RUNNING');
+            await redisClient.set('alphamark:mode', mode);
+            await redisClient.publish('alphamark:control', JSON.stringify({ command: 'START', mode }));
+            console.log(`[AUTO-START] System initialized. Mode: ${mode.toUpperCase()}`);
+        }
+
         // Subscriptions
         await redisSubscriber.subscribe('alphamark:updates', (message) => {
             const data = JSON.parse(message);
@@ -386,6 +398,7 @@ function defaultStats() {
         wins: 0,
         trades: 0,
         activeOpps: 0,
+        engineStatus: 'RUNNING',
         wallets: defaultWalletAddress ? [defaultWallet] : [],
         recentTrades: [],
         paperTradingMode: process.env.PAPER_TRADING_MODE !== 'false',
@@ -835,111 +848,7 @@ app.post('/api/control/stop', async (req, res) => {
     res.json({ success: true, status: 'STOPPED' });
 });
 
-// POST /api/settings/upload-env
-// Parses an uploaded .env file and applies it dynamically
-app.post('/api/settings/upload-env', async (req, res) => {
-    try {
-        const envContent = req.body;
-        if (!envContent) return res.status(400).json({ success: false, message: "No content received" });
 
-        const newConfig = dotenv.parse(envContent);
-        console.log(`[CONFIG] Received .env upload with ${Object.keys(newConfig).length} keys`);
-
-        const envPathCandidates = [
-            path.join(__dirname, '.env'),
-            path.join(process.cwd(), '.env'),
-            path.join(__dirname, '../.env')
-        ];
-        
-        let envPath = envPathCandidates[0];
-        // Use the first one that exists, or default to the first one if none exist
-        for (const p of envPathCandidates) {
-            if (fs.existsSync(p)) {
-                envPath = p;
-                break;
-            }
-        }
-
-        const backupDir = path.join(path.dirname(envPath), 'backups');
-
-        if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
-
-        if (fs.existsSync(envPath)) {
-            const currentEnvRaw = fs.readFileSync(envPath, 'utf8');
-            const currentConfig = dotenv.parse(currentEnvRaw);
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const backupFile = path.join(backupDir, `config_backup_${timestamp}.json`);
-            fs.writeFileSync(backupFile, JSON.stringify(currentConfig, null, 2));
-        }
-
-        fs.writeFileSync(envPath, envContent);
-
-        for (const [key, value] of Object.entries(newConfig)) {
-            // ONLY OVERWRITE IF VALUE IS NOT EMPTY: Prevents clearing platform-injected vars like REDIS_URL
-            if (value && value.trim() !== '') {
-                process.env[key] = value;
-                
-                // If REDIS_URL updated, re-init the bridge immediately
-                if (key === 'REDIS_URL') {
-                    await initRedisBridge(value);
-                }
-
-                // SYNC TO REDIS: Ensure distributed components (bot) see these updates
-                if (redisReady && redisClient && redisClient.isOpen) {
-                    await redisClient.hSet('alphamark:env', key, value);
-                }
-            }
-        }
-
-        if (newConfig.WALLET_ADDRESS && redisReady && redisClient && redisClient.isOpen) {
-            await redisClient.set('alphamark:active_wallet_address', newConfig.WALLET_ADDRESS);
-        }
-        if (newConfig.WALLET_ADDRESS && newConfig.PRIVATE_KEY && redisReady && redisClient && redisClient.isOpen) {
-            await redisClient.set(`alphamark:wallet:${newConfig.WALLET_ADDRESS}:private_key`, newConfig.PRIVATE_KEY);
-        }
-
-        const stats = await getBotStats();
-        if (newConfig.WALLET_ADDRESS || newConfig.DEPLOYER_ADDRESS) {
-            const walletAddress = newConfig.WALLET_ADDRESS || newConfig.DEPLOYER_ADDRESS;
-            const existingWallet = stats.wallets.find((wallet) => wallet.address === walletAddress);
-            if (!existingWallet) {
-                stats.wallets.unshift({
-                    address: walletAddress,
-                    balance: 0,
-                    mode: stats.wallet?.mode || 'auto',
-                    threshold: Number(stats.wallet?.threshold || 0.01),
-                    enabled: true
-                });
-            }
-            stats.wallet = stats.wallets.find((wallet) => wallet.address === walletAddress) || stats.wallet;
-        }
-
-        if (newConfig.PAPER_TRADING_MODE) {
-            stats.paperTradingMode = newConfig.PAPER_TRADING_MODE !== 'false';
-            if (redisReady && redisClient && redisClient.isOpen) {
-                await redisClient.set('alphamark:mode', stats.paperTradingMode ? 'paper' : 'live');
-            }
-        }
-
-        await persistStats(stats);
-
-        if (redisReady && redisClient && redisClient.isOpen) {
-            await redisClient.publish('alphamark:config', JSON.stringify({
-                type: 'ENV_UPDATE',
-                data: newConfig
-            }));
-        }
-
-        return res.json({
-            success: true,
-            message: "Configuration uploaded and broadcast to engine.",
-            envRequirements: getEnvRequirementsSnapshot()
-        });
-    } catch (e) {
-        console.error("Env upload failed:", e);
-        return res.status(500).json({ success: false, message: e.message });
-    }
-});
 
 // POST /api/copilot/chat
 // Alpha-Copilot Intelligence Engine

@@ -16,7 +16,7 @@ The fastest way to deploy AlphaMark to Render is through GitHub:
 2. **Connect to Render**
    - Go to https://dashboard.render.com
    - Click "New" → "Blueprint"
-   - Select your GitHub repository
+   - Select your GitHub repository (alpha)
    - Select `render.yaml` as the blueprint file
 
 3. **Add Secrets in Render Dashboard**

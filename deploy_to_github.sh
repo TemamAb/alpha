@@ -38,7 +38,7 @@ git remote set-url origin https://github.com/TemamAb/alpha.git 2>/dev/null || gi
 
 # Pull remote changes before pushing to resolve divergence
 echo "🔄 Syncing with remote repository..."
-git pull --rebase origin main
+git pull --rebase origin main || echo "⚠️ Remote branch 'main' not found. Assuming new repository..."
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
