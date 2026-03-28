@@ -6,13 +6,13 @@ import os
 # Add the strategy_engine/src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'strategy_engine', 'src'))
 
-from strategy import find_cross_chain_opportunities
+from strategy import find_profitable_opportunities
 
 print("=" * 50)
 print("Testing AlphaMark Strategy...")
 print("=" * 50)
 
-opps = find_cross_chain_opportunities()
+opps = find_profitable_opportunities()
 print(f"\n=== Found {len(opps)} opportunities ===")
 for opp in opps:
     print(opp)

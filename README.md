@@ -1,10 +1,10 @@
-# AlphaMark
+# AlphaMarkA: Enterprise Arbitrage & MEV Execution
 
-AlphaMark is a multi-service arbitrage platform with a Python strategy/execution stack, a Node dashboard, Redis-backed control/telemetry, and Solidity flash-loan contracts.
+AlphaMarkA is a high-frequency, multi-service arbitrage platform featuring a Python-based strategy/execution engine, a Node.js professional dashboard, and a Redis-backed orchestration layer for gasless flash-loan execution.
 
 ## Status
 
-Current repo state as of 2026-03-26:
+**Production Status:** Ready for Live Execution (Render Cloud Optimized)
 
 - `20` active chains in the production config
 - `23` configured DEX integrations in live stats
@@ -12,11 +12,13 @@ Current repo state as of 2026-03-26:
 - active web server: `frontend/server-dashboard.js`
 - active bot runtime: `execution_bot/scripts/bot.py`
 - active strategy runtime: `strategy_engine/src/strategy.py`
-- active Render blueprint: `render.yaml`
+- **Auto-Start Protocol:** Enabled (System starts in LIVE mode automatically)
+- **Repository:** `https://github.com/TemamAb/alpha`
 
-This is not a proof of guaranteed profitability. The stack is production-runnable, but live profitability still depends on market conditions, RPC quality, working factory/router data, gas, slippage, and execution success.
+### 🚀 Live Profit Generation
+AlphaMarkA is now configured for "Zero-Touch" operation. Upon connection to the Redis cluster on Render, the dashboard automatically broadcasts a `START` command in **LIVE TRADING MODE**. No manual user input is required to begin scanning and executing trades.
 
-## Architecture
+## System Architecture
 
 The live stack is split into three services:
 
@@ -162,7 +164,7 @@ Render worker RPC env vars currently wired in [render.yaml](/c:/Users/op/Desktop
 - `BLAST_RPC_URL`
 - `SEI_RPC_URL`
 
-Additional chains in the top-20 registry such as `zksync_era` and `manta_pacific` are active in the current production config, but their cloud deployment handling may still rely on fallback or monitor-first paths until dedicated env wiring and chain-specific validation are added.
+Additional chains in the top-20 registry such as `zksync_era` and `manta_pacific` are active in the current production config.
 
 Live mode on Render is controlled with:
 

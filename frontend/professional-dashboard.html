@@ -371,69 +371,52 @@
         <div id="page-settings" class="page-content hidden">
             <div class="flex items-start justify-between gap-6 mb-6">
                 <div>
-                    <h2 class="text-2xl font-bold text-white">Live Trading Settings</h2>
-                    <p class="text-sm text-gray-400 mt-1">Upload a local `.env` file, review required variables, and verify live-trading readiness before starting the engine.</p>
-                </div>
-                <div id="liveEnvStatusBadge" class="px-4 py-2 rounded-full text-xs font-bold border border-yellow-500/30 bg-yellow-500/10 text-yellow-300">
-                    Checking configuration
+                    <h2 class="text-2xl font-bold text-white">Settings</h2>
+                    <p class="text-sm text-gray-400 mt-1">Upload and store important files locally. Only one button for upload. Uploaded files are listed below.</p>
                 </div>
             </div>
-
-            <div class="grid grid-cols-5 gap-6">
-                <div class="glass-panel rounded-xl p-6 col-span-2">
-                    <h3 class="text-lg font-semibold text-white mb-4">Upload `.env`</h3>
-                    <div class="border border-dashed border-blue-500/30 rounded-xl bg-blue-500/5 p-5">
-                        <p class="text-sm text-gray-300 mb-4">Select a local `.env` file. The dashboard will parse it, store it on the server, and apply the values to the active runtime session.</p>
-                        <input type="file" id="envFileInput" accept=".env,text/plain" class="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-blue-500">
-                        <div class="flex items-center gap-3 mt-4">
-                            <button onclick="uploadEnvFile()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-semibold">Upload `.env`</button>
-                            <button onclick="loadEnvRequirements()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 px-4 py-2 rounded-lg text-sm font-semibold">Refresh Status</button>
-                        </div>
-                        <p id="envUploadMessage" class="text-xs text-gray-500 mt-3">No file uploaded in this session.</p>
-                    </div>
-
-                    <div class="mt-6">
-                        <div class="flex items-center justify-between mb-2">
-                            <h4 class="text-sm font-semibold text-white">Required Live Mode Template</h4>
-                            <button onclick="copyEnvTemplate()" class="text-xs text-blue-400 hover:text-blue-300">Copy template</button>
-                        </div>
-                        <textarea id="envTemplateOutput" readonly class="w-full h-80 bg-gray-950 border border-gray-800 rounded-xl p-4 text-xs text-gray-300 font-mono resize-none"></textarea>
-                    </div>
+            <div class="glass-panel rounded-xl p-6 col-span-2">
+                <div class="flex items-center gap-3 mb-4">
+                    <button id="uploadFileBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-2xl font-bold" title="Upload File" onclick="document.getElementById('fileInput').click()">+</button>
+                    <input type="file" id="fileInput" style="display:none" onchange="handleFileUpload(event)">
                 </div>
-
-                <div class="col-span-3 space-y-6">
-                    <div class="glass-panel rounded-xl p-6">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-white">Live Trading Readiness</h3>
-                            <span id="envReadinessText" class="text-xs text-gray-400">Loading requirements...</span>
-                        </div>
-                        <div class="grid grid-cols-3 gap-4">
-                            <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">Core Secrets</div>
-                                <div id="coreEnvCount" class="text-2xl font-bold text-white mt-2">0 / 0</div>
-                                <div class="text-xs text-gray-500 mt-1">Keys, wallet, deployer, flashloan, bundler</div>
-                            </div>
-                            <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">RPC Endpoints</div>
-                                <div id="rpcEnvCount" class="text-2xl font-bold text-white mt-2">0 / 0</div>
-                                <div class="text-xs text-gray-500 mt-1">Chain connectivity for live scans and execution</div>
-                            </div>
-                            <div class="bg-gray-900/60 border border-gray-800 rounded-xl p-4">
-                                <div class="text-xs uppercase tracking-wide text-gray-500">Optional Services</div>
-                                <div id="serviceEnvCount" class="text-2xl font-bold text-white mt-2">0 / 0</div>
-                                <div class="text-xs text-gray-500 mt-1">Redis, Copilot, and operational extras</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="glass-panel rounded-xl p-6">
-                        <h3 class="text-lg font-semibold text-white mb-4">Required Variables</h3>
-                        <div id="envRequirementsList" class="space-y-5">
-                            <div class="text-sm text-gray-500 italic">Loading variable checklist...</div>
-                        </div>
-                    </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm text-left text-gray-400 border border-gray-700 rounded-lg">
+                        <thead class="bg-gray-900">
+                            <tr>
+                                <th class="px-4 py-2">File Name</th>
+                                <th class="px-4 py-2">Size</th>
+                                <th class="px-4 py-2">Upload Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uploadedFilesTable">
+                            <!-- Files will be listed here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
+            <script>
+            // Simple in-memory file list for demo; replace with backend API for persistence
+            let uploadedFiles = [];
+            function handleFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                const now = new Date();
+                uploadedFiles.push({
+                    name: file.name,
+                    size: (file.size / 1024).toFixed(2) + ' KB',
+                    date: now.toLocaleString()
+                });
+                renderUploadedFiles();
+                event.target.value = '';
+            }
+            function renderUploadedFiles() {
+                const table = document.getElementById('uploadedFilesTable');
+                table.innerHTML = uploadedFiles.length === 0 ? '<tr><td colspan="3" class="text-center py-4 text-gray-500">No files uploaded yet.</td></tr>' :
+                    uploadedFiles.map(f => `<tr><td class="px-4 py-2">${f.name}</td><td class="px-4 py-2">${f.size}</td><td class="px-4 py-2">${f.date}</td></tr>`).join('');
+            }
+            renderUploadedFiles();
+            </script>
         </div>
 
     </main>
@@ -1300,20 +1283,25 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ mode: mode })
                 });
-                
-                const data = await response.json();
-                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    // Try to get raw text for debugging
+                    const rawText = await response.text();
+                    console.error('Non-JSON response from /api/control/start:', rawText);
+                    alert('❌ Error: Backend did not return JSON. Raw response:\n' + rawText);
+                    statusText.innerHTML = `<span class="text-red-400 font-bold">Non-JSON response from backend.</span>`;
+                    return;
+                }
                 if (data.success) {
                     isEngineRunning = true;
-                    
                     // Update button
                     const startBtn = document.getElementById('startEngineBtn');
                     startBtn.classList.add('hidden');
-                    
                     const pauseBtn = document.getElementById('pauseEngineBtn');
                     pauseBtn.classList.remove('hidden');
                     pauseBtn.classList.add('flex');
-                    
                     // Update status
                     if (isPaper) {
                         document.getElementById('paperTradingBanner').classList.remove('hidden');
@@ -1322,7 +1310,6 @@
                         document.getElementById('paperTradingBanner').classList.add('hidden');
                         statusText.innerHTML = `<span class="text-emerald-400 font-bold">Engine running in LIVE TRADING mode!</span>`;
                     }
-                    
                     alert(`✅ ${modeText} started successfully!`);
                 } else {
                     alert('❌ Failed to start engine: ' + (data.message || 'Unknown error'));

@@ -337,15 +337,41 @@ def execution_service(opportunity_queue: multiprocessing.Queue, service_id: int)
         except Exception:
             redis_client = None
 
+    # Set engine status to RUNNING and mode at start
+    if redis_client:
+        try:
+            redis_client.set("alphamark:status", "RUNNING")
+            mode = "live" if not executor.PAPER_TRADING_MODE else "paper"
+            redis_client.set("alphamark:mode", mode)
+        except Exception:
+            pass
+
     while True:
         try:
             status, mode = get_runtime_control_state(redis_client)
             if status == "PAUSED":
+                if redis_client:
+                    try:
+                        redis_client.set("alphamark:status", "PAUSED")
+                    except Exception:
+                        pass
                 time.sleep(1)
                 continue
             if status == "STOPPED":
+                if redis_client:
+                    try:
+                        redis_client.set("alphamark:status", "STOPPED")
+                    except Exception:
+                        pass
                 time.sleep(1)
                 continue
+
+            # Always keep mode in sync
+            if redis_client:
+                try:
+                    redis_client.set("alphamark:mode", mode)
+                except Exception:
+                    pass
 
             executor.PAPER_TRADING_MODE = mode != "live"
             opportunity = opportunity_queue.get()
