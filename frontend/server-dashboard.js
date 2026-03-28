@@ -381,33 +381,6 @@ function broadcastToClients(data) {
     });
 }
 
-function defaultStats() {
-    const defaultWalletAddress = process.env.WALLET_ADDRESS || process.env.DEPLOYER_ADDRESS || '';
-    const defaultWallet = {
-        balance: 0,
-        mode: 'auto',
-        threshold: 0.01,
-        address: defaultWalletAddress,
-        enabled: true
-    };
-
-    return {
-        totalProfit: 0,
-        dailyProfit: 0,
-        winRate: 0,
-        wins: 0,
-        trades: 0,
-        activeOpps: 0,
-        engineStatus: 'RUNNING',
-        wallets: defaultWalletAddress ? [defaultWallet] : [],
-        recentTrades: [],
-        paperTradingMode: process.env.PAPER_TRADING_MODE !== 'false',
-        wallet: defaultWallet,
-        sessionStart: Date.now(),
-        lastUpdate: Date.now()
-    };
-}
-
 function ensureWalletState(stats) {
     if (!stats.wallets || !Array.isArray(stats.wallets)) {
         stats.wallets = [];

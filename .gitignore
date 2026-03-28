@@ -48,9 +48,6 @@ smart_contracts/artifacts/
 *.tmp
 *.bak
 
-# Git
-.git/
-
 # Node
 npm-debug.log*
 yarn-debug.log*
