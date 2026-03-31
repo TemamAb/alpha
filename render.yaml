@@ -45,7 +45,7 @@ services:
     plan: starter
     autoDeploy: true
     envVars:
-      - key: START_DELAY
+  - key: START_DELAY
         value: "30"
       - key: REDIS_PING_TIMEOUT
         value: "60"
