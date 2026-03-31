@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dependencies
 node_modules/
 __pycache__/
@@ -57,3 +58,17 @@ yarn-error.log*
 venv/
 env/
 .venv/
+=======
+node_modules/
+.cache/
+artifacts/
+coverage/
+coverage.json
+typechain-types/
+*.env
+.env.local
+.env.*.local
+.DS_Store
+thp/
+
+>>>>>>> e91724b (Forge #1 enterprise Aave V3 flash loan arbitrage app: contracts, bot, React dashboard)

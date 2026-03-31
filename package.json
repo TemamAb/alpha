@@ -1,27 +1,42 @@
 {
-  "name": "alphamarka",
+  "name": "aave-flashloan-arb",
   "version": "1.0.0",
-  "description": "![AlphaMark](https://img.shields.io/badge/AlphaMark-v1.0.0-blue) ![Python](https://img.shields.io/badge/Python-3.11+-green) ![Node.js](https://img.shields.io/badge/Node.js-18+-green) ![Solidity](https://img.shields.io/badge/Solidity-0.8.10+-orange) ![License](https://img.shields.io/badge/License-MIT-yellow)",
-  "main": "deploy_gasless.js",
+  "description": "Enterprise-grade Aave V3 Arbitrage Flash Loan App (gasless Pimlico mode)",
+  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.ts --network polygonMumbai",
+    "bot": "ts-node scripts/arb-bot.ts",
+    "dev": "vite",
+    "build": "vite build"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/TemamAb/alpha.git"
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.12",
+    "typescript": "~5.6.2",
+    "@types/node": "~22.7.6",
+    "ts-node": "^10.9.2"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/TemamAb/alpha/issues"
-  },
-  "homepage": "https://github.com/TemamAb/alpha#readme",
   "dependencies": {
-    "dotenv": "^17.3.1",
-    "express": "^5.2.1",
-    "redis": "^5.11.0",
-    "ws": "^8.20.0"
+    "@aave/core-v3": "^1.19.3",
+    "@openzeppelin/contracts": "^5.0.2",
+    "ethers": "^6.13.4",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.7",
+    "vite": "^5.4.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+"wagmi": "^2.12.9",
+    "permissionless": "^1.5.4",
+    "@pimlico/bundler": "^0.5.3",
+    "@pimlico/paymaster": "^0.5.3",
+    "@pimlico/sdk": "^0.9.3"
+    "viem": "^2.21.28",
+    "@tanstack/react-query": "^5.59.0",
+    "permissionless": "^1.5.4",
+    "@pimlico/sdk": "^0.9.3"
   }
 }

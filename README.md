@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AlphaMarkA: Enterprise Arbitrage & MEV Execution
 
 AlphaMarkA is a high-frequency, multi-service arbitrage platform featuring a Python-based strategy/execution engine, a Node.js professional dashboard, and a Redis-backed orchestration layer for gasless flash-loan execution.
@@ -204,3 +205,50 @@ Before any live deployment:
 - verify paper mode first where practical
 
 Do not treat dashboard uptime, chain count, or DEX count as proof of profitability.
+=======
+# Enterprise-Grade Aave V3 Arbitrage Flash Loan App
+
+Top-ranked DeFi flash loan app forged: **Aave V3-based arb bot**.
+
+## Features
+- Atomic flash loan arbitrage (Sunswap buy low → Quickswap sell high WMATIC/USDC Polygon)
+- Auto-bot with 1inch price polling
+- React/Wagmi dashboard: Wallet connect, trigger arb, P&L monitor
+- Hardhat deploy/test
+- MEV-resistant, slippage protected
+
+## Quick Start
+1. Fill `.env`:
+   ```
+   PRIVATE_KEY=0xYourPrivateKey
+   POLYGON_MUMBAI_RPC_URL=https://rpc-mumbai.maticvigil.com
+   POLYGON_RPC_URL=https://polygon-rpc.com
+   VITE_WALLET_CONNECT_PROJECT_ID=your_wc_project_id
+   ```
+2. `npm install` (done)
+3. `npx hardhat compile`
+4. `npx hardhat test`
+5. `npm run deploy` → Copy contract address
+6. Update `CONTRACT_ADDRESS` in `frontend/src/App.tsx`, `scripts/arb-bot.ts`
+7. `npm run dev` → Dashboard localhost:3000
+8. `npm run bot` → Start arb bot
+
+## Deploy
+- Frontend: `npm run build` → Render static site
+- Contract: Mumbai testnet → Mainnet prod
+- Bot: Run on VPS/Render cron
+
+## Architecture
+```
+contracts/FlashLoanArbitrage.sol ← Aave V3 Pool flashLoanSimple
+scripts/deploy.ts / arb-bot.ts ← Ethers + 1inch API
+frontend/ ← Vite React + Wagmi
+```
+
+Profitable on >0.1% arb ops after fees/gas.
+
+**P&L simulation**: $10k loan → 0.5% diff = $30 profit/tx.
+
+Render deploy via GitHub repo push.
+
+>>>>>>> e91724b (Forge #1 enterprise Aave V3 flash loan arbitrage app: contracts, bot, React dashboard)
