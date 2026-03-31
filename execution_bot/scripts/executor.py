@@ -124,6 +124,8 @@ FLASHLOAN_CONTRACT_ADDRESS = None  # Will be resolved at runtime
 # --- Load from Environment ---
 PIMLICO_API_KEY = os.environ.get("PIMLICO_API_KEY")
 PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
+BICONOMY_API_KEY = os.environ.get("BICONOMY_API_KEY") or "mee_3ZUAvWL62BBVb2EjVPZwNUaF"
+BICONOMY_PROJECT_ID = os.environ.get("BICONOMY_PROJECT_ID") or "952496d5-236e-42b0-b6cb-6055813c1e5b"
 
 # Get wallet address - try multiple env var names
 WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS") or os.environ.get("WALLET_ADDRESS")
@@ -133,6 +135,7 @@ print(f"[EXECUTOR] PRIVATE_KEY set: {bool(PRIVATE_KEY and PRIVATE_KEY != DEFAULT
 print(f"[EXECUTOR] WALLET_ADDRESS: {WALLET_ADDRESS}")
 print(f"[EXECUTOR] DEPLOYER_ADDRESS: {DEPLOYER_ADDRESS}")
 print(f"[EXECUTOR] PIMLICO_API_KEY set: {bool(PIMLICO_API_KEY)}")
+print(f"[EXECUTOR] BICONOMY_API_KEY set: {bool(BICONOMY_API_KEY)}")
 
 def _is_non_empty(value):
     return bool(value and value.strip())
@@ -212,37 +215,41 @@ W3_PROVIDERS = {}
 # --- Chain-specific URLs ---
 CHAIN_CONFIG = {
     "ethereum": {
-        "rpc": os.environ.get("ETHEREUM_RPC", f"https://api.pimlico.io/v1/1/rpc?apikey={PIMLICO_API_KEY}"),
+        "rpcs": [os.environ.get("ETHEREUM_RPC"), "https://eth.llamarpc.com", "https://rpc.ankr.com/eth"],
         "paymaster": f"https://api.pimlico.io/v2/1/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": os.environ.get("ETHEREUM_PRIVATE_BUNDLER") if PRIVATE_MODE else f"https://api.pimlico.io/v1/1/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 1
     },
+    "biconomy_fallback": {
+        "paymaster_template": "https://paymaster.biconomy.io/api/v1/{chain_id}/{api_key}",
+        "bundler_template": "https://bundler.biconomy.io/api/v2/{chain_id}/{api_key}"
+    },
     "polygon": {
-        "rpc": os.environ.get("POLYGON_RPC_URL"),
+        "rpcs": [os.environ.get("POLYGON_RPC_URL"), "https://polygon-rpc.com", "https://rpc.ankr.com/polygon"],
         "paymaster": f"https://api.pimlico.io/v2/137/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": os.environ.get("POLYGON_PRIVATE_BUNDLER") if PRIVATE_MODE else f"https://api.pimlico.io/v1/137/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 137
     },
     "arbitrum": {
-        "rpc": os.environ.get("ARBITRUM_RPC", f"https://api.pimlico.io/v1/42161/rpc?apikey={PIMLICO_API_KEY}"),
+        "rpcs": [os.environ.get("ARBITRUM_RPC"), "https://arb1.arbitrum.io/rpc", "https://rpc.ankr.com/arbitrum"],
         "paymaster": f"https://api.pimlico.io/v2/42161/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": os.environ.get("ARBITRUM_PRIVATE_BUNDLER") if PRIVATE_MODE else f"https://api.pimlico.io/v1/42161/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 42161
     },
     "bsc": {
-        "rpc": os.environ.get("BSC_RPC", f"https://api.pimlico.io/v1/56/rpc?apikey={PIMLICO_API_KEY}"),
+        "rpcs": [os.environ.get("BSC_RPC"), "https://bsc-dataseed1.binance.org", "https://rpc.ankr.com/bsc"],
         "paymaster": f"https://api.pimlico.io/v2/56/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": f"https://api.pimlico.io/v1/56/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 56
     },
     "optimism": {
-        "rpc": os.environ.get("OPTIMISM_RPC", f"https://api.pimlico.io/v1/10/rpc?apikey={PIMLICO_API_KEY}"),
+        "rpcs": [os.environ.get("OPTIMISM_RPC"), "https://mainnet.optimism.io", "https://rpc.ankr.com/optimism"],
         "paymaster": f"https://api.pimlico.io/v2/10/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": f"https://api.pimlico.io/v1/10/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 10
     },
     "base": {
-        "rpc": os.environ.get("BASE_RPC", f"https://api.pimlico.io/v1/8453/rpc?apikey={PIMLICO_API_KEY}"),
+        "rpcs": [os.environ.get("BASE_RPC"), "https://mainnet.base.org", "https://rpc.ankr.com/base"],
         "paymaster": f"https://api.pimlico.io/v2/8453/rpc?apikey={PIMLICO_API_KEY}",
         "bundler": f"https://api.pimlico.io/v1/8453/rpc?apikey={PIMLICO_API_KEY}",
         "chain_id": 8453
@@ -330,8 +337,25 @@ def execute_flashloan(opportunity: dict) -> (bool, str):
         return False, f"Unsupported chain: {chain}"
 
     config = CHAIN_CONFIG[chain].copy() # Copy to avoid polluting global state
+    rpcs = config.get("rpcs", [config.get("rpc")])
+    rpcs = [r for r in rpcs if r] # Filter out None
 
-    # Auto-detect local simulation environment (Docker -> Host)
+    w3 = None
+    for rpc_url in rpcs:
+        try:
+            temp_w3 = Web3(Web3.HTTPProvider(rpc_url, session=GLOBAL_SESSION))
+            if temp_w3.is_connected():
+                w3 = temp_w3
+                config["rpc"] = rpc_url
+                break
+        except Exception:
+            continue
+
+    if not w3:
+        logger.error(f"Failed to connect to any RPC for chain: {chain}")
+        return False, "RPC Connection Error"
+
+    W3_PROVIDERS[chain] = w3
     # If RPC points to host.docker.internal, force local execution mode
     if "host.docker.internal" in config["rpc"] or "127.0.0.1" in config["rpc"]:
         logger.info(f"Detected local RPC for {chain}. Switching to Direct Execution Mode.")
@@ -439,8 +463,11 @@ def execute_flashloan(opportunity: dict) -> (bool, str):
             }, 'latest')
             logger.info("✅ Simulation successful. Proceeding with execution.")
         except Exception as e:
-            logger.error(f"❌ Simulation FAILED. Aborting execution. Reason: {e}")
-            return False, f"Simulation failed: {e}"
+            if init_code != "0x":
+                logger.warning(f"⚠️ Simulation failed but initCode is present. Proceeding with counter-factual deployment.")
+            else:
+                logger.error(f"❌ Simulation FAILED. Aborting execution. Reason: {e}")
+                return False, f"Simulation failed: {e}"
 
         # 3. Get Nonce from EntryPoint
         entrypoint_contract = w3.eth.contract(address=ENTRYPOINT_ADDRESS, abi=ENTRYPOINT_ABI)
@@ -500,17 +527,44 @@ def execute_flashloan(opportunity: dict) -> (bool, str):
         }
 
         # 5. Sponsor with Pimlico Paymaster
-        logger.info("Requesting paymaster sponsorship...")
-        sponsorship_response = GLOBAL_SESSION.post(config["paymaster"], json={
-            "jsonrpc": "2.0", "method": "pm_sponsorUserOperation", "params": [user_op, ENTRYPOINT_ADDRESS], "id": 1
-        }, timeout=10)
-        sponsorship_response.raise_for_status()
-        sponsorship_data = sponsorship_response.json()
-        if "error" in sponsorship_data: raise Exception(f"Paymaster Error: {sponsorship_data['error']['message']}")
+        logger.info("Requesting paymaster sponsorship (Pimlico)...")
+        try:
+            sponsorship_response = GLOBAL_SESSION.post(config["paymaster"], json={
+                "jsonrpc": "2.0", "method": "pm_sponsorUserOperation", "params": [user_op, ENTRYPOINT_ADDRESS], "id": 1
+            }, timeout=10)
+            sponsorship_response.raise_for_status()
+            sponsorship_data = sponsorship_response.json()
+            
+            if "error" in sponsorship_data:
+                raise Exception(f"Pimlico Error: {sponsorship_data['error']['message']}")
+            
+            sponsored_fields = sponsorship_data['result']
+            logger.info("Pimlico sponsorship received.")
+        except Exception as p_err:
+            logger.warning(f"Pimlico sponsorship failed: {p_err}. Attempting Biconomy fallback...")
+            
+            # Biconomy Fallback Logic
+            b_paymaster_url = CHAIN_CONFIG["biconomy_fallback"]["paymaster_template"].format(
+                chain_id=config["chain_id"], api_key=BICONOMY_API_KEY
+            )
+            sponsorship_response = GLOBAL_SESSION.post(b_paymaster_url, json={
+                "jsonrpc": "2.0", "method": "pm_sponsorUserOperation", "params": [user_op, ENTRYPOINT_ADDRESS], "id": 1
+            }, timeout=10)
+            sponsorship_response.raise_for_status()
+            sponsorship_data = sponsorship_response.json()
+            
+            if "error" in sponsorship_data:
+                raise Exception(f"Biconomy Fallback Error: {sponsorship_data['error']['message']}")
+            
+            sponsored_fields = sponsorship_data['result']
+            logger.info("Biconomy fallback sponsorship received.")
+            
+            # Update bundler URL to Biconomy infrastructure for submission
+            config["bundler"] = CHAIN_CONFIG["biconomy_fallback"]["bundler_template"].format(
+                chain_id=config["chain_id"], api_key=BICONOMY_API_KEY
+            )
 
-        sponsored_fields = sponsorship_data['result']
         user_op.update(sponsored_fields)
-        logger.info("Paymaster sponsorship received.")
 
         # 6. Sign the UserOperation
         user_op_hash = get_user_op_hash(w3, user_op, config["chain_id"])

@@ -83,12 +83,13 @@ class MulticallClient:
             abi=MULTICALL2_ABI
         )
         
-    def aggregate(self, calls: List[Tuple[str, bytes]]) -> List[bytes]:
+    def aggregate(self, calls: List[Tuple[str, bytes]], block_identifier: Any = 'latest') -> List[bytes]:
         """
         Execute multiple calls in a single transaction.
         
         Args:
             calls: List of (target_address, encoded_call_data) tuples
+            block_identifier: The block number or hash to query
             
         Returns:
             List of returned bytes from each call
@@ -104,7 +105,7 @@ class MulticallClient:
             ]
             
             # Single RPC call instead of N calls
-            block_number, results = self.contract.functions.aggregate(formatted_calls).call()
+            block_number, results = self.contract.functions.aggregate(formatted_calls).call(block_identifier=block_identifier)
             
             logger.debug(f"Multicall: Batched {len(calls)} calls at block {block_number}")
             return results
@@ -114,7 +115,7 @@ class MulticallClient:
             # Fallback: return empty results (callers should handle)
             return [b''] * len(calls)
     
-    def tryAggregate(self, calls: List[Tuple[str, bytes]]) -> List[Tuple[bool, bytes]]:
+    def tryAggregate(self, calls: List[Tuple[str, bytes]], block_identifier: Any = 'latest') -> List[Tuple[bool, bytes]]:
         """
         Execute multiple calls, continuing even if some fail.
         
@@ -130,7 +131,7 @@ class MulticallClient:
                 for target, data in calls
             ]
             
-            results = self.contract.functions.tryAggregate(formatted_calls).call()
+            results = self.contract.functions.tryAggregate(formatted_calls).call(block_identifier=block_identifier)
             return [(r['success'], r['returnData']) for r in results]
             
         except Exception as e:

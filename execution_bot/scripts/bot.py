@@ -122,7 +122,8 @@ if REDIS_URL:
         if redis_url_override:
             DASHBOARD_URL = redis_url_override
             logger.info(f"Using dynamic DASHBOARD_URL from Redis: {DASHBOARD_URL}")
-    except: pass
+    except Exception as e:
+        logger.warning(f"Failed to get DASHBOARD_URL from Redis: {e}")
 
 if not DASHBOARD_URL:
     DASHBOARD_URL = f"http://{_internal_host}" if _internal_host else "http://localhost:3000"
@@ -142,7 +143,8 @@ def report_execution_to_dashboard(opportunity, success, profit=0, loss=0, tx_has
                 "timestamp": datetime.now().isoformat()
             }
             requests.post(f"{DASHBOARD_URL}/api/bot/update", json=payload, timeout=2)
-        except: pass
+        except Exception as e:
+            logger.warning(f"Failed to report execution to dashboard: {e}")
     threading.Thread(target=_send, daemon=True).start()
 
 def report_heartbeat(active_opps_count):

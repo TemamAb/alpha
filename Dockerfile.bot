@@ -33,5 +33,5 @@ USER botuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import sys; sys.exit(0)" || exit 1
 
-# Run the bot - starts in LIVE TRADING MODE by default
+# Run the bot - starts in PAPER TRADING MODE by default (safe)
 CMD ["python", "execution_bot/scripts/bot.py"]

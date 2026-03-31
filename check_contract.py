@@ -5,11 +5,12 @@ Check if FlashLoan contract is already deployed
 import os
 import sys
 from web3 import Web3
-from eth_utils import keccak, rlp_encode
+from eth_utils import keccak, to_bytes
+import rlp
 
 def compute_contract_address(sender_address: str, nonce: int) -> str:
-    sender = Web3.to_checksum_address(sender_address)
-    rlp_data = rlp_encode([sender, nonce])
+    sender_bytes = to_bytes(hexstr=sender_address)
+    rlp_data = rlp.encode([sender_bytes, nonce])
     hash_bytes = keccak(rlp_data)
     address_bytes = hash_bytes[-20:]
     return Web3.to_checksum_address(address_bytes.hex())
@@ -18,15 +19,28 @@ def compute_contract_address(sender_address: str, nonce: int) -> str:
 WALLET = os.environ.get('WALLET_ADDRESS', '0x748Aa8ee067585F5bd02f0988eF6E71f2d662751')
 PIMLICO_KEY = os.environ.get('PIMLICO_API_KEY', '')
 
-# Try Pimlico RPC first (gasless)
-rpc = f"https://api.pimlico.io/v1/1/rpc?apikey={PIMLICO_KEY}"
-print(f"Checking via Pimlico RPC...")
+rpcs = [
+    os.environ.get('ETH_RPC_URL', ''),
+    os.environ.get('ETHEREUM_RPC', ''),
+    f"https://api.pimlico.io/v1/1/rpc?apikey={PIMLICO_KEY}" if PIMLICO_KEY else '',
+    'https://eth.llamarpc.com'
+]
 
-w3 = Web3(Web3.HTTPProvider(rpc))
-if not w3.is_connected():
-    # Fallback to public RPC
-    w3 = Web3(Web3.HTTPProvider('https://eth.llamarpc.com'))
-    print("Falling back to public RPC")
+w3 = None
+for rpc_url in rpcs:
+    if not rpc_url: continue
+    try:
+        temp_w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={'timeout': 15}))
+        if temp_w3.is_connected():
+            w3 = temp_w3
+            print(f"Connected via: {rpc_url[:60]}...")
+            break
+    except Exception:
+        continue
+
+if not w3:
+    print("ERROR: Could not connect to any RPC")
+    sys.exit(1)
 
 print(f"Connected: {w3.is_connected()}")
 print(f"Latest block: {w3.eth.block_number}")

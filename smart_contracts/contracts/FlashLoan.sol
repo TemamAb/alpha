@@ -98,17 +98,18 @@ contract FlashLoan is Ownable, ReentrancyGuard {
                 ethPath[0] = outputToken;
                 ethPath[1] = address(0); // ETH
 
-                // Approve router
-                IERC20Extended(outputToken).forceApprove(routers[0], profit);
+                // Approve router for exact amount only
+                IERC20Extended(outputToken).approve(routers[0], profit);
                 
                 try IDexRouter(routers[0]).swapExactTokensForETH(
                     profit,
                     0,
                     ethPath,
                     address(this),
-                    block.timestamp + 300
-                ) {} catch {
-                    // If swap fails, keep the tokens
+                    block.timestamp + 30
+                ) {} catch (bytes memory reason) {
+                    // If swap fails, emit error and keep the tokens
+                    emit Error(string(abi.encodePacked("Profit swap failed: ", reason)));
                 }
             }
             
@@ -175,23 +176,23 @@ contract FlashLoan is Ownable, ReentrancyGuard {
                 );
             } else if (tokenOut == address(0)) {
                 // Token -> ETH swap
-                IERC20Extended(tokenIn).forceApprove(routers[0], amountIn);
+                IERC20Extended(tokenIn).approve(routers[0], amountIn);
                 IDexRouter(routers[0]).swapExactTokensForETH(
                     amountIn,
                     amountOutMin,
                     path,
                     address(this),
-                    block.timestamp + 300
+                    block.timestamp + 30
                 );
             } else {
                 // Token -> Token swap
-                IERC20Extended(tokenIn).forceApprove(routers[0], amountIn);
+                IERC20Extended(tokenIn).approve(routers[0], amountIn);
                 IDexRouter(routers[0]).swapExactTokensForTokens(
                     amountIn,
                     amountOutMin,
                     path,
                     address(this),
-                    block.timestamp + 300
+                    block.timestamp + 30
                 );
             }
         } 
@@ -199,13 +200,13 @@ contract FlashLoan is Ownable, ReentrancyGuard {
         else {
             // For multi-hop, we need to split across routers or use sequential swaps
             // Simplified: use first router for entire path
-            IERC20Extended(tokenIn).forceApprove(routers[0], amountIn);
+            IERC20Extended(tokenIn).approve(routers[0], amountIn);
             IDexRouter(routers[0]).swapExactTokensForTokens(
                 amountIn,
                 amountOutMin,
                 path,
                 address(this),
-                block.timestamp + 300
+                block.timestamp + 30
             );
         }
 
@@ -248,13 +249,13 @@ contract FlashLoan is Ownable, ReentrancyGuard {
 
             // Perform swap
             if (tokenIn != address(0)) {
-                IERC20Extended(tokenIn).forceApprove(router, borrowed);
+                IERC20Extended(tokenIn).approve(router, borrowed);
                 IDexRouter(router).swapExactTokensForTokens(
                     borrowed,
                     amountOutMin,
                     path,
                     address(this),
-                    block.timestamp + 300
+                    block.timestamp + 30
                 );
             }
 
@@ -267,7 +268,7 @@ contract FlashLoan is Ownable, ReentrancyGuard {
         // Approve pool to pull back the flash loaned amount + fees
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 amountOwing = amounts[i] + premiums[i];
-            IERC20Extended(assets[i]).forceApprove(msg.sender, amountOwing);
+            IERC20Extended(assets[i]).approve(msg.sender, amountOwing);
             emit FlashLoanRepaid(assets[i], amounts[i], premiums[i]);
         }
 

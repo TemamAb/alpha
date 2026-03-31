@@ -5,7 +5,12 @@ import os
 import logging
 import requests
 import time
-import redis
+try:
+    import redis
+except ImportError:
+    redis = None
+import random
+import threading
 
 try:
     from . import multicall
@@ -82,11 +87,12 @@ print(f"[UTILS] Config path: {config_path}")
 try:
     with open(config_path) as f:
         CONFIG = json.load(f)
-    print(f"[UTILS] Config loaded! Keys: {list(CONFIG.keys())}")
-    SUPPORTED_CHAINS = list(CONFIG.keys())
 except (FileNotFoundError, json.JSONDecodeError) as e:
     print(f"ERROR: Could not load config from {config_path}: {e}")
     CONFIG = {}
+
+print(f"[UTILS] Config keys: {list(CONFIG.keys())}")
+SUPPORTED_CHAINS = list(CONFIG.keys())
 
 # Uniswap V2 Router ABI
 ROUTER_ABI = [
@@ -132,6 +138,7 @@ _PAIR_CACHE = {}
 _W3_CACHE = {}
 _BAD_FACTORY_CACHE = set()
 _RPC_LATENCY_CACHE = {}
+_EXHAUSTED_RPCS = set()
 _REDIS_CLIENT = None
 
 def _dedupe_preserve_order(values):
@@ -164,7 +171,7 @@ def _get_redis_client():
         return _REDIS_CLIENT
 
     redis_url = os.environ.get("REDIS_URL")
-    if not redis_url:
+    if not redis or not redis_url:
         return None
 
     try:
@@ -193,12 +200,19 @@ def get_rpc_latency_snapshot():
             pass
     return {chain: round(latency, 2) for chain, latency in _RPC_LATENCY_CACHE.items()}
 
+def is_placeholder(val):
+    """Checks if a string is a configuration placeholder."""
+    if not val: return True
+    placeholders = ['YOUR_KEY', 'YOUR_PRIVATE_KEY', 'YOUR_INFURA', 'YOUR_BLAST', 'YOUR_PROJECT_ID', '0x0000000000000000']
+    return any(p in str(val) for p in placeholders)
+
 def get_preferred_rpcs(chain):
     rpcs = []
     if chain in CONFIG:
-        for key in ['rpc_production', 'rpc_alt1', 'rpc_alt2', 'rpc_fallback', 'rpc']:
+        # Architect Fix: Prioritize Verified GetBlock (alt0) and Blast (alt2) for high CU allowance
+        for key in ['rpc_alt0', 'rpc_alt2', 'rpc_production', 'rpc_alt1', 'rpc_fallback', 'rpc']:
             rpc = CONFIG[chain].get(key)
-            if rpc and 'YOUR' not in rpc and 'YOUR_' not in rpc:
+            if rpc and not is_placeholder(rpc):
                 rpcs.append(rpc)
 
     env_var_candidates = [f"{chain.upper()}_RPC_URL", f"{chain.upper()}_RPC"]
@@ -219,7 +233,7 @@ def get_preferred_rpcs(chain):
             
         # Fallback to local process environment
         val = os.environ.get(var)
-        if val:
+        if val and not is_placeholder(val):
             rpcs.insert(0, val)
 
     rpcs = _dedupe_preserve_order(rpcs)
@@ -260,11 +274,13 @@ def get_rpc(chain):
     candidate_rpcs = get_preferred_rpcs(chain)
 
     for rpc in candidate_rpcs:
+        if rpc in _EXHAUSTED_RPCS:
+            continue
         if not rpc or "YOUR_KEY" in rpc or "YOUR_PROJECT_ID" in rpc:
             continue
         # Architect Fix: Filter out local RPCs in Paper/Live mode
         is_local = "127.0.0.1" in rpc or "localhost" in rpc
-        if is_local and os.environ.get("PAPER_TRADING_MODE") == "true":
+        if is_local and os.environ.get("PAPER_TRADING_MODE") == "false":
             continue
 
         try:
@@ -400,7 +416,7 @@ def get_all_dex_pairs(w3, factory_address, chain_name=None):
         w3.eth.block_number
         rpc_latency = (time.time() - start_t) * 1000
         _record_rpc_latency(chain_name, rpc_latency)
-    except:
+    except Exception:
         rpc_latency = 500
 
     base_limit = chain_pair_limits.get(chain_name, 1000)
@@ -426,27 +442,58 @@ def get_all_dex_pairs(w3, factory_address, chain_name=None):
         logger.info(f"Fetching {num_to_fetch}/{length} pairs via resilient multicall", extra={"chain": chain_name})
 
         # Global semaphore for concurrency control
-        import threading
-        semaphore = threading.Semaphore(10)  # Max 10 concurrent batches
+        semaphore = threading.Semaphore(2)  # Downsized for Alchemy Free Tier (2 concurrent batches)
 
         multicaller = multicall.get_multicaller(w3, chain_name=chain_name)
         pair_addresses = []
-        batch_size = [20]  # Mutable batch size for adaptive handling
-        max_retries = 3
+        # Mutate batch size and delay dynamically based on RPC pressure
+        batch_state = {"size": 5, "delay": 1.0}
+        max_retries = 5
         
         def resilient_multicall(calls, rpc_idx=0, retry_count=0, multicaller=multicaller):
             with semaphore:
+                time.sleep(batch_state["delay"]) # Learned optimal spacing
                 try:
+                    # ARCHITECT FIX: Use block - 1 to avoid 'header not found' errors on newer blocks
+                    target_block = w3.eth.block_number - 1
+                    
+                    # Use the multicall module reference imported at the top of the file
+                    # to determine if we are using the Contract client or the BatchRPC fallback
                     if hasattr(multicaller, 'aggregate'):
-                        results = multicaller.aggregate(calls)
+                        results = multicaller.aggregate(calls, block_identifier=target_block)
                     else:
-                        batch_reqs = [{"method": "eth_call", "params": [{"to": target, "data": data}, "latest"]} for target, data in calls]
+                        batch_reqs = [{"method": "eth_call", "params": [{"to": target, "data": data}, hex(target_block)]} for target, data in calls]
                         results = multicaller.batch_call(batch_reqs)
+                    
+                    # Slowly decrease delay if successful
+                    if retry_count == 0:
+                        batch_state["delay"] = max(0.2, batch_state["delay"] * 0.95)
                     return results, rpc_idx
                 except Exception as e:
                     if '429' in str(e) or 'rate limit' in str(e).lower():
-                        sleep_time = (2 ** retry_count) * 0.5 + 0.2  # Exp backoff + base
-                        logger.warning(f"Rate limit hit (RPC {rpc_idx}). Backoff {sleep_time:.2f}s, retry {retry_count+1}/{max_retries}")
+                        # ARCHITECT FIX: Multi-Provider Quota Protection
+                        if any(phrase in str(e).lower() for phrase in ["compute unit", "credit", "limit exceeded"]):
+                            current_rpc = w3.provider.endpoint_uri
+                            logger.error(f"!!! RPC QUOTA EXHAUSTED: {current_rpc} !!! Rotating Provider.")
+                            _EXHAUSTED_RPCS.add(current_rpc)
+                            
+                            # If Alchemy fails, blacklist all alchemy URLs for this session
+                            if "alchemy.com" in current_rpc:
+                                _PROVIDER_BLACKLIST.add("alchemy.com")
+
+                            if len(rpc_list) <= 1:
+                                redis_client = _get_redis_client()
+                                if redis_client: redis_client.set("alphamark:status", "ERROR_NO_RPC")
+                                logger.critical("No healthy RPCs remaining. Halting.")
+                                sys.exit(1)
+
+                        # Scaling back pressure dynamically
+                        batch_state["delay"] = min(15.0, batch_state["delay"] * 2.5 + 1.0)
+                        batch_state["size"] = max(2, batch_state["size"] // 2)
+
+                        # Architect Fix: Added Jitter to prevent 'Thundering Herd' problem
+                        sleep_time = ((2 ** retry_count) * 2.0) + random.uniform(0.5, 1.5)
+                        logger.warning(f"Rate limit 429 (RPC {rpc_idx}). New adaptive delay: {batch_state['delay']:.1f}s. Cooling down...")
                         time.sleep(sleep_time)
                         if retry_count < max_retries:
                             # Rotate RPC
@@ -456,13 +503,13 @@ def get_all_dex_pairs(w3, factory_address, chain_name=None):
                                 w3.provider = Web3.HTTPProvider(rpc_list[new_rpc_idx], session=get_w3_session(), request_kwargs={'timeout': 10})
                                 new_multicaller = multicall.get_multicaller(w3, chain_name=chain_name)  # Re-init
                                 # Reduce batch size on RPC rotation to avoid rate limits
-                                batch_size[0] = max(5, batch_size[0] // 2)
-                                logger.info(f"Reduced batch size to {batch_size[0]} after RPC rotation")
+                                batch_state["size"] = max(2, batch_state["size"] // 2)
+                                logger.info(f"Reduced batch size to {batch_state['size']} after RPC rotation")
                                 return resilient_multicall(calls, new_rpc_idx, retry_count + 1, new_multicaller)
                         else:
                             # Reduce batch size on final fail
-                            batch_size[0] = max(5, batch_size[0] // 2)
-                            logger.warning(f"Max retries. Reduced batch_size to {batch_size[0]}")
+                            batch_state["size"] = max(2, batch_state["size"] // 2)
+                            logger.warning(f"Max retries. Reduced batch_size to {batch_state['size']}")
                             return [], rpc_idx
                     raise e
 
@@ -482,8 +529,8 @@ def get_all_dex_pairs(w3, factory_address, chain_name=None):
                 return None
             return None
 
-        for i in range(0, num_to_fetch, batch_size[0]):
-            count = min(batch_size[0], num_to_fetch - i)
+        for i in range(0, num_to_fetch, batch_state["size"]):
+            count = min(batch_state["size"], num_to_fetch - i)
             calls = [(factory_address, factory.encodeABI(fn_name="allPairs", args=[j])) for j in range(i, i + count)]
             results, _ = resilient_multicall(calls)
             for res in results:
@@ -494,8 +541,8 @@ def get_all_dex_pairs(w3, factory_address, chain_name=None):
 
         # Step 2: Token0/Token1
         pair_contract = w3.eth.contract(abi=PAIR_ABI)
-        for i in range(0, len(pair_addresses), batch_size[0]):
-            chunk = pair_addresses[i:i + batch_size[0]]
+        for i in range(0, len(pair_addresses), batch_state["size"]):
+            chunk = pair_addresses[i:i + batch_state["size"]]
             calls = []
             for pair_addr in chunk:
                 calls.append((pair_addr, pair_contract.encodeABI(fn_name="token0")))

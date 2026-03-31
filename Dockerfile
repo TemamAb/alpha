@@ -12,21 +12,27 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Node Dependencies (Dashboard)
+# 2. Create non-root user for security
+RUN groupadd -r alphamark && useradd -r -g alphamark -d /app -s /sbin/nologin alphamark
+
+# 3. Install Node Dependencies (Dashboard)
 COPY frontend/package*.json ./frontend/
 RUN cd frontend && npm install --production
 
-# 3. Install Python Dependencies (Bot)
+# 4. Install Python Dependencies (Bot)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4. Copy Application Code
+# 5. Copy Application Code
 COPY . .
 
-# 5. Fix Permissions & Set Scripts
+# 6. Fix Permissions & Set Scripts
 RUN chmod +x start_alphamark.sh
 
-# 6. Set Environment Defaults
+# 7. Set ownership to non-root user
+RUN chown -R alphamark:alphamark /app
+
+# 8. Set Environment Defaults
 ENV PORT=3000
 ENV PAPER_TRADING_MODE=true
 ENV NODE_ENV=production
@@ -35,9 +41,12 @@ ENV PYTHONUNBUFFERED=1
 # Expose the dashboard port
 EXPOSE 3000
 
-# 7. Health Check
+# 9. Health Check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
+
+# 10. Switch to non-root user
+USER alphamark
 
 # Start both services using the launcher script
 CMD ["./start_alphamark.sh"]

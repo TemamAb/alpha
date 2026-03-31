@@ -6,7 +6,8 @@ Dynamically calculates where the contract will be deployed.
 import os
 import sys
 from web3 import Web3
-from eth_utils import keccak, rlp_encode
+from eth_utils import keccak, to_bytes
+import rlp
 
 # Load environment
 from dotenv import load_dotenv
@@ -14,8 +15,8 @@ load_dotenv()
 
 def compute_contract_address(sender_address: str, nonce: int) -> str:
     """Compute address using CREATE formula"""
-    sender = Web3.to_checksum_address(sender_address)
-    rlp_data = rlp_encode([sender, nonce])
+    sender_bytes = to_bytes(hexstr=sender_address)
+    rlp_data = rlp.encode([sender_bytes, nonce])
     hash_bytes = keccak(rlp_data)
     address_bytes = hash_bytes[-20:]
     return Web3.to_checksum_address(address_bytes.hex())
@@ -31,29 +32,41 @@ def main():
     
     # Try multiple RPCs
     rpcs = [
-        'https://eth.llamarpc.com',
-        'https://api.pimlico.io/v1/1/rpc?apikey=' + os.environ.get('PIMLICO_API_KEY', ''),
+        os.environ.get('ETH_RPC_URL', ''),
         os.environ.get('ETHEREUM_RPC', ''),
+        'https://eth.llamarpc.com',
+        'https://cloudflare-eth.com',
     ]
+    
+    # Add Pimlico only if key is available
+    pimlico_key = os.environ.get('PIMLICO_API_KEY')
+    if pimlico_key:
+        rpcs.append(f'https://api.pimlico.io/v1/1/rpc?apikey={pimlico_key}')
     
     w3 = None
     for rpc in rpcs:
         if rpc:
             try:
-                w3 = Web3(Web3.HTTPProvider(rpc))
-                if w3.is_connected():
-                    print(f"Connected via: {rpc[:50]}...")
+                # Add timeout to handle unstable public nodes
+                temp_w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={'timeout': 15}))
+                if temp_w3.is_connected():
+                    w3 = temp_w3
+                    print(f"Connected via: {rpc[:60]}...")
                     break
-            except:
+            except Exception:
                 continue
     
-    if not w3 or not w3.is_connected():
+    if not w3:
         print("ERROR: Could not connect to any Ethereum RPC")
         sys.exit(1)
     
     # Get current nonce
     nonce = w3.eth.get_transaction_count(wallet_address)
-    print(f"Current nonce (transaction count): {nonce}")
+    try:
+        balance_wei = w3.eth.get_balance(wallet_address)
+    except: balance_wei = 0
+    
+    print(f"Signer Nonce: {nonce} | Balance: {w3.from_wei(balance_wei, 'ether')} ETH")
     
     # Compute next contract addresses
     print("\n--- Potential Contract Addresses ---")

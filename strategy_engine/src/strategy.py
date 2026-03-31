@@ -120,16 +120,20 @@ def analyze_path(w3, chain_name, dex_name, router_address, path, loan_amount_wei
             # 1. INDUSTRY BEST PRACTICE: Liquidity Check
             # Prevent trades in shallow pools where price impact ruins the trade 
             # even if getAmountsOut says it's profitable (MEV/Sandwich risk).
-            # Require pool depth to be at least 15x the trade size.
+            # Require pool depth to be at least 10x the trade size.
+            LIQUIDITY_MULTIPLIER = float(os.environ.get("LIQUIDITY_MULTIPLIER", "10.0"))
             pool_liquidity = fetch_liquidity(chain_name, chk_path[0])
-            if pool_liquidity < (loan_amount_eth * eth_price) * 15:
+            
+            # ARCHITECT FIX: If liquidity is 0 (failed fetch) or insufficient, REJECT.
+            if pool_liquidity <= 0 or pool_liquidity < (loan_amount_eth * eth_price) * LIQUIDITY_MULTIPLIER:
                 return {"status": "rejected_liquidity"}
             
             # 2. DYNAMIC SPREAD VALIDATION
             # Only trade if the net profit is a logical percentage of the trade size
             # (e.g. > 0.05% net ROI per trade to cover hidden slippage/errors)
             roi_pct = (net_profit_usd / (loan_amount_eth * eth_price)) * 100
-            if roi_pct < 0.05: # Minimal term: 5 basis points net
+            MIN_ROI_PCT = float(os.environ.get("MIN_ROI_PCT", "0.01"))
+            if roi_pct < MIN_ROI_PCT:
                 return {"status": "rejected_roi"}
 
             if net_profit_usd >= min_profit_usd:
@@ -282,6 +286,7 @@ def find_graph_arbitrage_opportunities(chain_name, chain_data, max_hops=3, min_p
     dynamic_limit = MAX_SEARCH_PATHS
     if latency_ms < 50: dynamic_limit *= 2
     elif latency_ms > 300: dynamic_limit //= 2
+    dynamic_limit = max(dynamic_limit, 1000) # Ensure a floor for discovery
     
     logger.info(f"Dynamic Scan Optimization: Depth limit adjusted to {dynamic_limit} paths (Latency: {latency_ms:.0f}ms)")
 
@@ -321,8 +326,8 @@ def find_graph_arbitrage_opportunities(chain_name, chain_data, max_hops=3, min_p
     loan_amount_eth = 1.0 
     loan_amount_wei = w3.to_wei(loan_amount_eth, 'ether')
 
-    # Parallel path analysis
-    with concurrent.futures.ThreadPoolExecutor(max_workers=100) as executor:
+    # Parallel path analysis (Architect: Reduced to 25 to ensure GetBlock/Infura CU stability)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
         futures = []
         # Multi-DEX Leg Selection Optimization
         # For each leg in the path, pick a router that supports it.
