@@ -309,6 +309,28 @@ async function initRedisBridge(url) {
         redisReady = false;
     });
 
+    // RENDER ENHANCEMENT: Exponential retry loop
+    let retryCount = 0;
+    const maxRetries = 10;
+    const initWithRetry = async () => {
+      while (retryCount < maxRetries) {
+        try {
+          await redisClient.connect();
+          await redisSubscriber.connect();
+          // ... rest of connect logic
+          console.log(`[REDIS] Connected after ${retryCount} retries`);
+          return;
+        } catch (err) {
+          retryCount++;
+          const delay = Math.min(10000 * Math.pow(2, retryCount), 60000);
+          console.log(`[REDIS] Retry ${retryCount}/${maxRetries} in ${delay/1000}s...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+      console.error('[REDIS] Max retries exceeded - STANDALONE mode');
+    };
+    await initWithRetry();
+
     redisClient.on('error', (err) => {
         if (!redisReady) {
             console.warn('[REDIS] Handshake notice (awaiting service):', err.message);
