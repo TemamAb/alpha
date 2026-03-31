@@ -25,15 +25,15 @@ git add -A
 # Create commit with timestamp
 echo "💾 Creating deployment commit..."
 TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-git commit -m "deploy: production-ready arbitrage engine - $TIMESTAMP" || echo "⚠️ No changes to commit. Proceeding..."
+git commit -m "prod: deploy production-ready arbitrage engine - following 90b13f4 - $TIMESTAMP" || echo "⚠️ No changes to commit. Proceeding..."
 
 # Add remote (update with your repository URL)
 echo "🔗 Configuring remote repository..."
-git remote set-url origin https://github.com/TemamAb/alpha.git 2>/dev/null || git remote add origin https://github.com/TemamAb/alpha.git
+git remote set-url origin https://github.com/TemamAb/alpha.git || git remote add origin https://github.com/TemamAb/alpha.git
 
 # Pull remote changes before pushing to resolve divergence
 echo "🔄 Syncing with remote repository..."
-git pull --rebase origin main || echo "⚠️ Remote branch 'main' not found. Assuming new repository..."
+git pull --rebase origin main --quiet || echo "⚠️ Remote branch 'main' not found or branch is empty. Proceeding..."
 
 # Push to GitHub
 echo "🚀 Pushing to GitHub..."
