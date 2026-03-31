@@ -1,6 +1,8 @@
 import logging
 import sys
 import os
+import time
+from collections import deque
 
 # Add project root to path to allow importing from other modules
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,6 +16,12 @@ MAX_SLIPPAGE_PCT = 0.005  # 0.5%
 MIN_LIQUIDITY_RATIO = 0.1  # 10% of pool
 MIN_PROFIT_USD = 10  # USD equivalent
 IMPERMANENT_LOSS_THRESHOLD = 0.02  # 2%
+
+# KPI #6 Upgrade: Sandwich Attack Detection
+SANDWICH_DETECTION_WINDOW = 10  # blocks
+SANDWICH_PRICE_IMPACT_THRESHOLD = 0.02  # 2% price impact in single block
+_mempool_transactions = deque(maxlen=1000)  # Recent transactions for analysis
+_sandwich_alerts = {}  # Track sandwich attack patterns
 
 def check_slippage(expected_price, actual_price, max_pct=None):
     """
@@ -64,6 +72,164 @@ def check_impermanent_loss(base_price, current_price, threshold=None):
         threshold = IMPERMANENT_LOSS_THRESHOLD
     il = abs(current_price - base_price) / base_price
     return il <= threshold
+
+def detect_sandwich_attack(token_address, amount_in, expected_price, chain_name):
+    """
+    KPI #6 Upgrade: Detect potential sandwich attacks by analyzing mempool patterns.
+    
+    A sandwich attack occurs when:
+    1. Attacker sees our pending transaction
+    2. Attacker front-runs with a large buy (driving price up)
+    3. Our transaction executes at worse price
+    4. Attacker back-runs with a sell (profiting from price difference)
+    
+    Returns:
+        dict with detection results and risk level
+    """
+    try:
+        # Get recent transactions for this token
+        recent_txs = [
+            tx for tx in _mempool_transactions
+            if tx.get('token') == token_address and tx.get('chain') == chain_name
+        ]
+        
+        if len(recent_txs) < 2:
+            return {"detected": False, "risk_level": "low"}
+        
+        # Analyze price impact patterns
+        price_impacts = []
+        for tx in recent_txs[-SANDWICH_DETECTION_WINDOW:]:
+            if 'price_impact' in tx:
+                price_impacts.append(tx['price_impact'])
+        
+        if not price_impacts:
+            return {"detected": False, "risk_level": "low"}
+        
+        # Check for suspicious price impact spikes
+        avg_impact = sum(price_impacts) / len(price_impacts)
+        max_impact = max(price_impacts)
+        
+        # High price impact in recent blocks is suspicious
+        if max_impact > SANDWICH_PRICE_IMPACT_THRESHOLD:
+            logger.warning(f"Suspicious price impact detected: {max_impact*100:.2f}% > {SANDWICH_PRICE_IMPACT_THRESHOLD*100:.2f}%")
+            return {
+                "detected": True,
+                "risk_level": "high",
+                "reason": f"High price impact: {max_impact*100:.2f}%",
+                "recommendation": "Use Flashbots bundle or increase slippage tolerance"
+            }
+        
+        # Check for rapid price changes (sandwich pattern)
+        if len(price_impacts) >= 3:
+            recent_avg = sum(price_impacts[-3:]) / 3
+            if recent_avg > avg_impact * 2:
+                logger.warning(f"Rapid price change pattern detected (possible sandwich)")
+                return {
+                    "detected": True,
+                    "risk_level": "medium",
+                    "reason": "Rapid price changes in recent blocks",
+                    "recommendation": "Monitor mempool or use private transaction pool"
+                }
+        
+        return {"detected": False, "risk_level": "low"}
+    except Exception as e:
+        logger.error(f"Sandwich detection error: {e}")
+        return {"detected": False, "risk_level": "unknown", "error": str(e)}
+
+def calculate_dynamic_slippage(amount_in, pool_liquidity, chain_name=None, volatility_multiplier=1.0):
+    """
+    KPI #6 Upgrade: Calculate dynamic slippage based on trade size, liquidity, and market volatility.
+    
+    Industry Best Practice:
+    - Low Liquidity/High Volatility -> Higher Slippage Tolerance
+    - High Liquidity/Stable -> Lower Slippage Tolerance
+    
+    Returns:
+        float: Dynamic slippage percentage (0.001 to 0.03)
+    """
+    BASE_SLIPPAGE = 0.001   # 0.1% Minimum (Standard for high-liquidity cross-dex)
+    MAX_SLIPPAGE = 0.03     # 3.0% Safety Cap to prevent front-running/sandwiching
+    
+    if pool_liquidity <= 0:
+        return 0.01  # 1% default fallback
+    
+    # Price Impact = Trade Size / Pool Depth
+    impact = float(amount_in) / float(pool_liquidity)
+    
+    # Volatility Multiplier:
+    # For L2s (Polygon/BSC) where block times are fast, volatility per-block is lower.
+    # For Mainnet, we need more cushion.
+    chain_volatility = 1.5 if chain_name == 'ethereum' else 1.0
+    
+    # Dynamic formula: Base + Impact * Multiplier * Volatility
+    # (Impact * 2.5) covers the standard CPMM price impact curve curvature
+    dynamic_slippage = BASE_SLIPPAGE + (impact * 2.5 * chain_volatility * volatility_multiplier)
+    
+    # Cap at maximum
+    dynamic_slippage = min(max(dynamic_slippage, BASE_SLIPPAGE), MAX_SLIPPAGE)
+    
+    logger.debug(f"Dynamic slippage for {chain_name}: {dynamic_slippage*100:.2f}% (Impact: {impact*100:.2f}%)")
+    return dynamic_slippage
+
+def check_mev_risk(opportunity, chain_name):
+    """
+    KPI #6 Upgrade: Comprehensive MEV risk assessment.
+    
+    Checks for:
+    1. Sandwich attack risk
+    2. Front-running risk
+    3. Back-running risk
+    4. JIT (Just-In-Time) liquidity risk
+    
+    Returns:
+        dict with MEV risk assessment
+    """
+    risks = []
+    risk_level = "low"
+    
+    # Check for sandwich attack risk
+    token = opportunity.get('base_token_address')
+    amount_in = opportunity.get('loan_amount', 0)
+    expected_price = opportunity.get('buy_price', 0)
+    
+    if token and amount_in > 0:
+        sandwich_check = detect_sandwich_attack(token, amount_in, expected_price, chain_name)
+        if sandwich_check['detected']:
+            risks.append(f"sandwich_risk:{sandwich_check['risk_level']}")
+            if sandwich_check['risk_level'] == 'high':
+                risk_level = "high"
+            elif sandwich_check['risk_level'] == 'medium' and risk_level != "high":
+                risk_level = "medium"
+    
+    # Check for high-value transaction (more attractive to MEV bots)
+    net_profit = opportunity.get('net_usd_profit', 0)
+    if net_profit > 100:  # High profit transactions are more attractive to MEV bots
+        risks.append("high_value_target")
+        if risk_level == "low":
+            risk_level = "medium"
+    
+    # Check for complex paths (more attack surface)
+    path_length = len(opportunity.get('path', []))
+    if path_length > 3:  # Multi-hop paths are more vulnerable
+        risks.append(f"complex_path:{path_length}_hops")
+    
+    return {
+        "risk_level": risk_level,
+        "risks": risks,
+        "recommendation": "Use Flashbots bundle" if risk_level == "high" else "Monitor execution"
+    }
+
+def record_mempool_transaction(token, chain, price_impact, block_number):
+    """
+    Record a transaction for sandwich attack detection.
+    """
+    _mempool_transactions.append({
+        "token": token,
+        "chain": chain,
+        "price_impact": price_impact,
+        "block": block_number,
+        "timestamp": time.time()
+    })
 
 def full_risk_assessment(opportunity, current_prices, liquidity_data, model_confidence_score=None):
     """
@@ -142,6 +308,13 @@ def full_risk_assessment(opportunity, current_prices, liquidity_data, model_conf
     # If the AI is very unsure (< 50%), treat it as a risk
     if model_confidence_score is not None and model_confidence_score < 0.50:
         risks.append(f"low_ml_confidence:{model_confidence_score:.2f}")
+
+    # KPI #6 Upgrade: MEV Risk Assessment
+    chain_name = opportunity.get('chain', 'ethereum')
+    mev_risk = check_mev_risk(opportunity, chain_name)
+    if mev_risk['risk_level'] != 'low':
+        risks.extend(mev_risk['risks'])
+        logger.warning(f"MEV risk detected: {mev_risk['risk_level']} - {mev_risk['risks']}")
 
     # Safe if no risks found
     safe = len(risks) == 0

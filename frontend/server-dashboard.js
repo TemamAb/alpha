@@ -544,7 +544,8 @@ app.post('/api/settings/upload-env', async (req, res) => {
 
     const updated = {};
     const skipped = [];
-    const PROTECTED_KEYS = new Set(['PRIVATE_KEY', 'REDIS_URL', 'REDIS_URL_EXTERNAL']);
+// Removed PROTECTED_KEYS - allow full .env override for Render
+
 
     envText.split('\n').forEach(line => {
         line = line.trim();

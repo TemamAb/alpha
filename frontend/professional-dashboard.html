@@ -119,10 +119,7 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                     AI Copilot
                 </button>
-                <button data-page="settings" onclick="showPage('settings')" class="sidebar-btn w-full text-left flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors" title="Settings">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    Settings
-                </button>
+
             </div>
             <!-- 4. Engine Control -->
             <div class="p-5 mt-auto border-t border-gray-800">
@@ -368,131 +365,12 @@
             </div>
         </div>
 
-        <div id="page-settings" class="page-content hidden">
-            <div class="flex items-start justify-between gap-6 mb-6">
-                <div>
-                    <h2 class="text-2xl font-bold text-white">Settings</h2>
-                    <p class="text-sm text-gray-400 mt-1">Environment configuration and live trading readiness.</p>
-                </div>
-                <span id="liveEnvStatusBadge" class="px-4 py-2 rounded-full text-xs font-bold border border-gray-600 bg-gray-800/50 text-gray-400">Checking...</span>
-            </div>
 
-            <!-- Env Readiness Summary -->
-            <div class="glass-panel rounded-xl p-6 mb-6">
-                <p id="envReadinessText" class="text-sm text-gray-400 mb-4">Loading environment status...</p>
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="bg-gray-900/50 p-4 rounded-lg text-center border border-gray-800">
-                        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Core Secrets</div>
-                        <div id="coreEnvCount" class="text-2xl font-bold text-white font-mono">-/-</div>
-                    </div>
-                    <div class="bg-gray-900/50 p-4 rounded-lg text-center border border-gray-800">
-                        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">RPC Endpoints</div>
-                        <div id="rpcEnvCount" class="text-2xl font-bold text-white font-mono">-/-</div>
-                    </div>
-                    <div class="bg-gray-900/50 p-4 rounded-lg text-center border border-gray-800">
-                        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Services</div>
-                        <div id="serviceEnvCount" class="text-2xl font-bold text-white font-mono">-/-</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Env Requirements List -->
-            <div class="glass-panel rounded-xl p-6 mb-6">
-                <h3 class="text-lg font-semibold text-white mb-4">Environment Variables</h3>
-                <div id="envRequirementsList" class="space-y-4">
-                    <div class="text-sm text-gray-500 italic py-4 text-center">Loading environment status...</div>
-                </div>
-            </div>
-
-            <!-- .env Upload & Template -->
-            <div class="glass-panel rounded-xl p-6 mb-6">
-                <h3 class="text-lg font-semibold text-white mb-1">.env File Upload</h3>
-                <p class="text-xs text-gray-400 mb-4">Upload a local <code class="text-blue-400 bg-gray-900 px-1 rounded">.env</code> file to update the runtime configuration dynamically without redeployment.</p>
-                <div class="flex flex-wrap items-center gap-3 mb-2">
-                    <input type="file" id="envFileInput" accept=".env,.txt" class="block text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
-                    <button onclick="uploadEnvFile()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded-lg font-medium transition-colors">Upload &amp; Apply</button>
-                </div>
-                <div id="envUploadMessage" class="text-xs mt-2"></div>
-                <div class="mt-4">
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-xs text-gray-400 font-medium">Required .env Template</label>
-                        <button onclick="copyEnvTemplate()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">Copy to Clipboard</button>
-                    </div>
-                    <textarea id="envTemplateOutput" readonly class="w-full bg-gray-900 border border-gray-700 text-gray-400 text-xs font-mono rounded-lg p-3 h-32 resize-none focus:outline-none"></textarea>
-                </div>
-            </div>
-
-            <!-- File Storage -->
-            <div class="glass-panel rounded-xl p-6">
-                <div class="flex items-center gap-3 mb-4">
-                    <h3 class="text-lg font-semibold text-white">File Storage</h3>
-                    <button id="uploadFileBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold ml-auto" title="Upload File" onclick="document.getElementById('fileInput').click()">+</button>
-                    <input type="file" id="fileInput" style="display:none" onchange="handleFileUpload(event)">
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-sm text-left text-gray-400 border border-gray-700 rounded-lg">
-                        <thead class="bg-gray-900">
-                            <tr>
-                                <th class="px-4 py-2">File Name</th>
-                                <th class="px-4 py-2">Size</th>
-                                <th class="px-4 py-2">Upload Date</th>
-                            </tr>
-                        </thead>
-                        <tbody id="uploadedFilesTable"></tbody>
-                    </table>
-                </div>
-            </div>
-            <script>
-            let uploadedFiles = [];
-            function handleFileUpload(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-                const now = new Date();
-                uploadedFiles.push({ name: file.name, size: (file.size / 1024).toFixed(2) + ' KB', date: now.toLocaleString() });
-                renderUploadedFiles();
-                event.target.value = '';
-            }
-            function renderUploadedFiles() {
-                const table = document.getElementById('uploadedFilesTable');
-                table.innerHTML = uploadedFiles.length === 0 ? '<tr><td colspan="3" class="text-center py-4 text-gray-500">No files uploaded yet.</td></tr>' :
-                    uploadedFiles.map(f => `<tr><td class="px-4 py-2">${f.name}</td><td class="px-4 py-2">${f.size}</td><td class="px-4 py-2">${f.date}</td></tr>`).join('');
-            }
-            renderUploadedFiles();
-            </script>
-        </div>
 
     </main>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 backdrop-blur-sm">
-        <div class="glass-panel rounded-xl p-6 w-96 border border-gray-700">
-            <h2 class="text-xl font-bold text-white mb-4">Wallet Configuration</h2>
-            
-            <div class="mb-4">
-                <label class="block text-gray-400 text-xs mb-1">Withdrawal Mode</label>
-                <select id="configMode" class="w-full bg-gray-900 border border-gray-700 text-white rounded p-2 text-sm">
-                    <option value="manual">Manual</option>
-                    <option value="auto">Auto-Withdraw</option>
-                </select>
-            </div>
 
-            <div class="mb-4">
-                <label class="block text-gray-400 text-xs mb-1">Threshold (ETH)</label>
-                <input type="number" id="configThreshold" step="0.01" class="w-full bg-gray-900 border border-gray-700 text-white rounded p-2 text-sm" value="0.01">
-            </div>
-
-            <div class="mb-6">
-                <label class="block text-gray-400 text-xs mb-1">Target Address</label>
-                <input type="text" id="configAddress" class="w-full bg-gray-900 border border-gray-700 text-white rounded p-2 text-sm font-mono" placeholder="0x...">
-            </div>
-
-            <div class="flex justify-end gap-3">
-                <button onclick="toggleSettingsModal()" class="text-gray-400 hover:text-white text-sm">Cancel</button>
-                <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-medium">Save Configuration</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Add Wallet Modal -->
     <div id="addWalletModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50 backdrop-blur-sm">
@@ -1114,11 +992,7 @@
         // --- Initialization ---
 
 
-        // --- User Actions ---
-        function toggleSettingsModal() {
-            document.getElementById('settingsModal').classList.toggle('hidden');
-            document.getElementById('settingsModal').classList.toggle('flex');
-        }
+
         
         function toggleAddWalletModal() {
             document.getElementById('addWalletModal').classList.toggle('hidden');

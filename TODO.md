@@ -1,8 +1,12 @@
-# AlphaMarkA LIVE Production - REAL PROFITS (Paper Disabled)
-## LIVE Components Running
-- [ ] Dashboard: `node frontend/server-local-production.js` → localhost:3000/health → LIVE
-- [ ] Bot LIVE: `$env:PAPER_TRADING_MODE="false"; python execution_bot/scripts/bot.py` → Profits to dashboard
-- [ ] Verify: totalProfit >0, trade_history.csv updates, auto-withdraw 0.01 ETH
+to use infu# AlphaMarkA KPI Enhancement TODO Tracker
+**Status**: Phase 1 Config Fixed [✅] | Next: strategy.py
 
-## Status: REAL TRADING ACTIVE - No Simulation
-Dashboard: http://localhost:3000 | CSV: trade_history.csv
+## Phase 1
+- [✅] 1.1 contracts.json: Added subgraphs/Alchemy RPCs (fixed JSON)
+- [ ] 1.2 strategy.py: TheGraph + mempool + 50 threads
+- [ ] 1.3 executor.py: Complete Flashbots bundles
+- [ ] 1.4 Tests + pytest
+ra api key rpc and not alchemy - [ ] 1.5 docker-compose verify latency <100ms
+
+**Metrics Target**: Latency 100ms, Opp Detection +20%
+

@@ -23,15 +23,12 @@ services:
       dockerfile: frontend/Dockerfile
     ports:
       - "8080:3000"
+    env_file:
+      - .env.example
     environment:
       - PORT=3000
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PAPER_TRADING_MODE=${PAPER_TRADING_MODE:-true}
-      - WALLET_ADDRESS=${WALLET_ADDRESS}
-      - DEPLOYER_ADDRESS=${DEPLOYER_ADDRESS}
-      - PRIVATE_KEY=${PRIVATE_KEY}
     depends_on:
       redis:
         condition: service_healthy
@@ -44,6 +41,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
 
   bot:
     container_name: alpha-bot

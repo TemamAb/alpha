@@ -1,0 +1,39 @@
+# AlphaMark Execution Bot Dockerfile - FIXED VERSION
+# Fixes: redis-cli for health check, proper startup validation
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies including redis-tools for health check
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    redis-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Set Python path
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+
+# Safe default for deployment-plan execution
+ENV PAPER_TRADING_MODE=true
+
+# Create non-root user for security
+RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
+USER botuser
+
+# Health check using Python (more reliable than redis-cli)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import redis, os, sys; r = redis.from_url(os.environ.get('REDIS_URL', ''), socket_timeout=5); r.ping() or sys.exit(1)" || exit 1
+
+# Run the bot with startup validation
+CMD ["python", "-u", "execution_bot/scripts/bot.py"]

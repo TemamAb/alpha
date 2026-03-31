@@ -29,6 +29,11 @@ logger.setLevel(logging.INFO)
 
 DEFAULT_LOCAL_KEY = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 
+# KPI #4 Upgrade: Flashbots MEV Protection
+FLASHBOTS_SIGNING_KEY = os.environ.get("FLASHBOTS_SIGNING_KEY")
+FLASHBOTS_RELAY_URL = "https://relay.flashbots.net"
+FLASHBOTS_AUTH_DOMAIN = "flashbots.net"
+
 REDIS_URL = os.environ.get("REDIS_URL")
 # MEV Protection: Enabled by default for production use
 # Set MEV_PROTECTION=false only for testing on testnets
@@ -320,6 +325,102 @@ def get_user_op_hash(w3: Web3, user_op: dict, chain_id: int) -> bytes:
     user_op_hash_no_entrypoint = w3.keccak(packed_user_op)
     return w3.keccak(encode_packed(['bytes32', 'address', 'uint256'], [user_op_hash_no_entrypoint, Web3.to_checksum_address(ENTRYPOINT_ADDRESS), chain_id]))
 
+def sign_flashbots_bundle(bundle_hash: bytes, signing_key: str) -> str:
+    """
+    KPI #4: Sign a Flashbots bundle for MEV protection.
+    Uses EIP-191 signing for Flashbots relay authentication.
+    """
+    try:
+        from eth_account.messages import encode_defunct
+        from eth_account import Account
+        
+        # Sign the bundle hash using EIP-191
+        message = encode_defunct(primitive=bundle_hash)
+        signed = Account.sign_message(message, private_key=signing_key)
+        return signed.signature.hex()
+    except Exception as e:
+        logger.error(f"Failed to sign Flashbots bundle: {e}")
+        return None
+
+def submit_flashbots_bundle(user_op: dict, chain_id: int, block_number: int = None) -> dict:
+    """
+    KPI #4: Submit a UserOperation as a Flashbots bundle for MEV protection.
+    This prevents sandwich attacks and front-running by using private transaction pools.
+    """
+    if not FLASHBOTS_SIGNING_KEY:
+        logger.warning("Flashbots signing key not configured. Skipping bundle submission.")
+        return {"success": False, "error": "Flashbots signing key not configured"}
+    
+    try:
+        # Prepare bundle payload
+        bundle_payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_sendBundle",
+            "params": [{
+                "txs": [user_op],
+                "blockNumber": hex(block_number) if block_number else "latest",
+                "minTimestamp": 0,
+                "maxTimestamp": int(time.time()) + 120
+            }]
+        }
+        
+        # Sign the bundle
+        bundle_hash = Web3.keccak(json.dumps(bundle_payload).encode())
+        signature = sign_flashbots_bundle(bundle_hash, FLASHBOTS_SIGNING_KEY)
+        
+        if not signature:
+            return {"success": False, "error": "Failed to sign bundle"}
+        
+        # Submit to Flashbots relay
+        headers = {
+            "Content-Type": "application/json",
+            "X-Flashbots-Signature": f"{Account.from_key(FLASHBOTS_SIGNING_KEY).address}:{signature}"
+        }
+        
+        response = GLOBAL_SESSION.post(
+            FLASHBOTS_RELAY_URL,
+            json=bundle_payload,
+            headers=headers,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(f"Flashbots bundle submitted successfully: {result}")
+            return {"success": True, "result": result}
+        else:
+            logger.error(f"Flashbots bundle submission failed: {response.status_code} - {response.text}")
+            return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
+    except Exception as e:
+        logger.error(f"Flashbots bundle submission error: {e}")
+        return {"success": False, "error": str(e)}
+
+def get_flashbots_bundle_stats(bundle_hash: str) -> dict:
+    """
+    KPI #4: Get statistics for a submitted Flashbots bundle.
+    """
+    try:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_getBundleStats",
+            "params": [bundle_hash]
+        }
+        
+        response = GLOBAL_SESSION.post(
+            FLASHBOTS_RELAY_URL,
+            json=payload,
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"HTTP {response.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
 # --- Main Execution Logic ---
 
 def execute_flashloan(opportunity: dict) -> (bool, str):
@@ -327,6 +428,119 @@ def execute_flashloan(opportunity: dict) -> (bool, str):
     Builds, signs, and sends a gasless UserOperation for an arbitrage opportunity.
     Returns (success_boolean, user_op_hash_or_error_string).
     """
+
+def execute_multi_batch(opportunities: list, max_batch_size: int = 5) -> list:
+    """
+    KPI #3 Upgrade: Multi-batch execution for fusion-scale throughput.
+    Executes multiple opportunities in parallel for higher tx/s.
+    
+    Args:
+        opportunities: List of arbitrage opportunities
+        max_batch_size: Maximum number of opportunities to execute in parallel
+    
+    Returns:
+        List of execution results (success, hash/error)
+    """
+    if not opportunities:
+        return []
+    
+    # Limit batch size to prevent resource exhaustion
+    batch = opportunities[:max_batch_size]
+    results = []
+    
+    logger.info(f"Executing multi-batch: {len(batch)} opportunities")
+    
+    # Execute in parallel using ThreadPoolExecutor
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(batch), 10)) as executor:
+        future_to_opp = {
+            executor.submit(execute_flashloan, opp): opp 
+            for opp in batch
+        }
+        
+        for future in concurrent.futures.as_completed(future_to_opp):
+            opp = future_to_opp[future]
+            try:
+                success, result = future.result(timeout=30)
+                results.append({
+                    "opportunity": opp,
+                    "success": success,
+                    "result": result
+                })
+                if success:
+                    logger.info(f"Batch execution success: {opp.get('chain')} - ${opp.get('net_usd_profit', 0):.2f}")
+                else:
+                    logger.warning(f"Batch execution failed: {opp.get('chain')} - {result}")
+            except Exception as e:
+                logger.error(f"Batch execution error for {opp.get('chain')}: {e}")
+                results.append({
+                    "opportunity": opp,
+                    "success": False,
+                    "result": str(e)
+                })
+    
+    successful = sum(1 for r in results if r['success'])
+    logger.info(f"Multi-batch complete: {successful}/{len(batch)} successful")
+    
+    return results
+
+def execute_fusion_batch(opportunities: list) -> dict:
+    """
+    KPI #3 Upgrade: Fusion-style batch execution with intelligent routing.
+    Similar to 1inch Fusion, this executes multiple opportunities across different
+    DEXes and chains for maximum capital efficiency.
+    
+    Returns:
+        dict with batch statistics and results
+    """
+    if not opportunities:
+        return {"total": 0, "successful": 0, "failed": 0, "results": []}
+    
+    # Group opportunities by chain for efficient execution
+    chain_groups = {}
+    for opp in opportunities:
+        chain = opp.get('chain', 'unknown')
+        if chain not in chain_groups:
+            chain_groups[chain] = []
+        chain_groups[chain].append(opp)
+    
+    all_results = []
+    total_profit = 0.0
+    
+    logger.info(f"Fusion batch: {len(opportunities)} opportunities across {len(chain_groups)} chains")
+    
+    # Execute each chain group in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(chain_groups)) as executor:
+        future_to_chain = {
+            executor.submit(execute_multi_batch, opps, max_batch_size=3): chain
+            for chain, opps in chain_groups.items()
+        }
+        
+        for future in concurrent.futures.as_completed(future_to_chain):
+            chain = future_to_chain[future]
+            try:
+                chain_results = future.result(timeout=60)
+                all_results.extend(chain_results)
+                
+                # Calculate profit for this chain
+                chain_profit = sum(
+                    r['opportunity'].get('net_usd_profit', 0)
+                    for r in chain_results if r['success']
+                )
+                total_profit += chain_profit
+                logger.info(f"Chain {chain}: ${chain_profit:.2f} profit from {len(chain_results)} executions")
+            except Exception as e:
+                logger.error(f"Fusion batch error for chain {chain}: {e}")
+    
+    successful = sum(1 for r in all_results if r['success'])
+    failed = len(all_results) - successful
+    
+    return {
+        "total": len(all_results),
+        "successful": successful,
+        "failed": failed,
+        "total_profit_usd": total_profit,
+        "results": all_results
+    }
     # Variables are now guaranteed by module-level check, but we check specific chain config
     
 
