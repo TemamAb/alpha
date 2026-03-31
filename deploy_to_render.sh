@@ -18,6 +18,10 @@ echo "👤 Configuring git user..."
 git config user.name "AlphaMark Team"
 git config user.email "team@alphamark.io"
 
+# Resolve nested git issues (flatten flashloan_app)
+echo "🧹 Cleaning nested git metadata in flashloan_app..."
+find flashloan_app -name ".git" -type d -prune -exec rm -rf {} + || true
+
 # Add all files
 echo "📝 Adding files to staging..."
 git add -A

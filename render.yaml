@@ -13,7 +13,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: PAPER_TRADING_MODE
-        value: "true"
+        sync: false
       - key: REDIS_URL
         fromService:
           type: keyvalue
@@ -48,7 +48,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: PAPER_TRADING_MODE
-        value: "true"
+        sync: false
       - key: REDIS_URL
         fromService:
           type: keyvalue
