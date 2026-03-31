@@ -442,6 +442,20 @@ async function getBotStats() {
             }
             stats.engineStatus = await redisClient.get('alphamark:status') || 'STOPPED';
             stats.redisStatus = 'connected';
+
+            // Merge bot heartbeat written directly to Redis (fallback for when HTTP bot→dashboard fails)
+            const hb = await redisClient.hGetAll('alphamark:heartbeat');
+            if (hb && hb.activeOpps !== undefined) {
+                stats.activeOpps = Number(hb.activeOpps || 0);
+                stats.lastBotHeartbeat = hb.timestamp || null;
+                // Update lastUpdate if bot has been alive more recently
+                if (hb.timestamp) {
+                    const hbMs = new Date(hb.timestamp).getTime();
+                    if (!stats.lastUpdate || hbMs > stats.lastUpdate) {
+                        stats.lastUpdate = hbMs;
+                    }
+                }
+            }
         } catch (err) {
             stats.redisStatus = 'error';
         }
@@ -495,6 +509,49 @@ app.get('/api/wallet/balance', async (req, res) => {
 
 app.get('/api/settings/env-requirements', async (req, res) => {
     res.json(getEnvRequirementsSnapshot());
+});
+
+// POST /api/settings/upload-env
+// Receives a plain-text .env file body, parses it, updates process.env at runtime
+// and pushes the changes to Redis so the bot picks them up via ENV_UPDATE event.
+app.post('/api/settings/upload-env', async (req, res) => {
+    const envText = typeof req.body === 'string' ? req.body : '';
+    if (!envText || envText.trim().length === 0) {
+        return res.status(400).json({ success: false, message: 'Empty .env content received.' });
+    }
+
+    const updated = {};
+    const skipped = [];
+    const PROTECTED_KEYS = new Set(['PRIVATE_KEY', 'REDIS_URL', 'REDIS_URL_EXTERNAL']);
+
+    envText.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line || line.startsWith('#')) return;
+        const eqIdx = line.indexOf('=');
+        if (eqIdx < 1) return;
+        const key = line.slice(0, eqIdx).trim();
+        const value = line.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+        if (!key) return;
+        if (PROTECTED_KEYS.has(key)) { skipped.push(key); return; }
+        process.env[key] = value;
+        updated[key] = value;
+    });
+
+    if (redisReady && redisClient && redisClient.isOpen && Object.keys(updated).length > 0) {
+        try {
+            await redisClient.hSet('alphamark:env', updated);
+            await redisClient.publish('alphamark:control', JSON.stringify({
+                type: 'ENV_UPDATE',
+                data: updated
+            }));
+        } catch (err) {
+            console.warn('[ENV] Redis push failed:', err.message);
+        }
+    }
+
+    const envRequirements = getEnvRequirementsSnapshot();
+    console.log(`[ENV] Runtime config updated: ${Object.keys(updated).length} vars applied, ${skipped.length} protected vars skipped.`);
+    res.json({ success: true, updated: Object.keys(updated), skipped, envRequirements });
 });
 
 // POST /api/bot/update

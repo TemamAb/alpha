@@ -372,12 +372,61 @@
             <div class="flex items-start justify-between gap-6 mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-white">Settings</h2>
-                    <p class="text-sm text-gray-400 mt-1">Upload and store important files locally. Only one button for upload. Uploaded files are listed below.</p>
+                    <p class="text-sm text-gray-400 mt-1">Environment configuration and live trading readiness.</p>
+                </div>
+                <span id="liveEnvStatusBadge" class="px-4 py-2 rounded-full text-xs font-bold border border-gray-600 bg-gray-800/50 text-gray-400">Checking...</span>
+            </div>
+
+            <!-- Env Readiness Summary -->
+            <div class="glass-panel rounded-xl p-6 mb-6">
+                <p id="envReadinessText" class="text-sm text-gray-400 mb-4">Loading environment status...</p>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-gray-900/50 p-4 rounded-lg text-center border border-gray-800">
+                        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Core Secrets</div>
+                        <div id="coreEnvCount" class="text-2xl font-bold text-white font-mono">-/-</div>
+                    </div>
+                    <div class="bg-gray-900/50 p-4 rounded-lg text-center border border-gray-800">
+                        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">RPC Endpoints</div>
+                        <div id="rpcEnvCount" class="text-2xl font-bold text-white font-mono">-/-</div>
+                    </div>
+                    <div class="bg-gray-900/50 p-4 rounded-lg text-center border border-gray-800">
+                        <div class="text-xs text-gray-500 uppercase tracking-wider mb-2">Services</div>
+                        <div id="serviceEnvCount" class="text-2xl font-bold text-white font-mono">-/-</div>
+                    </div>
                 </div>
             </div>
-            <div class="glass-panel rounded-xl p-6 col-span-2">
+
+            <!-- Env Requirements List -->
+            <div class="glass-panel rounded-xl p-6 mb-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Environment Variables</h3>
+                <div id="envRequirementsList" class="space-y-4">
+                    <div class="text-sm text-gray-500 italic py-4 text-center">Loading environment status...</div>
+                </div>
+            </div>
+
+            <!-- .env Upload & Template -->
+            <div class="glass-panel rounded-xl p-6 mb-6">
+                <h3 class="text-lg font-semibold text-white mb-1">.env File Upload</h3>
+                <p class="text-xs text-gray-400 mb-4">Upload a local <code class="text-blue-400 bg-gray-900 px-1 rounded">.env</code> file to update the runtime configuration dynamically without redeployment.</p>
+                <div class="flex flex-wrap items-center gap-3 mb-2">
+                    <input type="file" id="envFileInput" accept=".env,.txt" class="block text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
+                    <button onclick="uploadEnvFile()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-4 py-2 rounded-lg font-medium transition-colors">Upload &amp; Apply</button>
+                </div>
+                <div id="envUploadMessage" class="text-xs mt-2"></div>
+                <div class="mt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <label class="text-xs text-gray-400 font-medium">Required .env Template</label>
+                        <button onclick="copyEnvTemplate()" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">Copy to Clipboard</button>
+                    </div>
+                    <textarea id="envTemplateOutput" readonly class="w-full bg-gray-900 border border-gray-700 text-gray-400 text-xs font-mono rounded-lg p-3 h-32 resize-none focus:outline-none"></textarea>
+                </div>
+            </div>
+
+            <!-- File Storage -->
+            <div class="glass-panel rounded-xl p-6">
                 <div class="flex items-center gap-3 mb-4">
-                    <button id="uploadFileBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-2xl font-bold" title="Upload File" onclick="document.getElementById('fileInput').click()">+</button>
+                    <h3 class="text-lg font-semibold text-white">File Storage</h3>
+                    <button id="uploadFileBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold ml-auto" title="Upload File" onclick="document.getElementById('fileInput').click()">+</button>
                     <input type="file" id="fileInput" style="display:none" onchange="handleFileUpload(event)">
                 </div>
                 <div class="overflow-x-auto">
@@ -389,24 +438,17 @@
                                 <th class="px-4 py-2">Upload Date</th>
                             </tr>
                         </thead>
-                        <tbody id="uploadedFilesTable">
-                            <!-- Files will be listed here -->
-                        </tbody>
+                        <tbody id="uploadedFilesTable"></tbody>
                     </table>
                 </div>
             </div>
             <script>
-            // Simple in-memory file list for demo; replace with backend API for persistence
             let uploadedFiles = [];
             function handleFileUpload(event) {
                 const file = event.target.files[0];
                 if (!file) return;
                 const now = new Date();
-                uploadedFiles.push({
-                    name: file.name,
-                    size: (file.size / 1024).toFixed(2) + ' KB',
-                    date: now.toLocaleString()
-                });
+                uploadedFiles.push({ name: file.name, size: (file.size / 1024).toFixed(2) + ' KB', date: now.toLocaleString() });
                 renderUploadedFiles();
                 event.target.value = '';
             }
@@ -1070,18 +1112,6 @@
         }
 
         // --- Initialization ---
-        window.addEventListener('load', () => {
-            // ... existing load logic ...
-
-            const refreshSelect = document.getElementById('refreshInterval');
-            refreshSelect.addEventListener('change', (event) => {
-                const newInterval = parseInt(event.target.value, 10);
-                setupPolling(newInterval);
-            });
-
-            // Initial setup
-            setupPolling(parseInt(refreshSelect.value, 10));
-        });
 
 
         // --- User Actions ---
@@ -1341,6 +1371,7 @@
             const refreshSelect = document.getElementById('refreshInterval');
             const initialInterval = parseInt(refreshSelect.value, 10);
             setupPolling(initialInterval);
+            pollStats(); // Immediate first poll — don't wait for interval
 
             refreshSelect.addEventListener('change', (event) => {
                 const newInterval = parseInt(event.target.value, 10);

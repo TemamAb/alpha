@@ -111,13 +111,22 @@ def get_model_confidence(opportunity):
 
 # Configuration
 REDIS_URL = os.environ.get("REDIS_URL")
-_internal_host = os.getenv("DASHBOARD_HOSTPORT")
-DASHBOARD_URL = os.getenv("DASHBOARD_URL")
+_internal_host = os.getenv("DASHBOARD_HOSTPORT")  # Set by render.yaml from alphamark-dashboard service
+DASHBOARD_URL_ENV = os.getenv("DASHBOARD_URL")
 
-# ARCHITECT FIX: Check Redis for dynamic DASHBOARD_URL override (Priority)
+# Priority: explicit DASHBOARD_URL env > DASHBOARD_HOSTPORT (Render internal) > localhost fallback
+if DASHBOARD_URL_ENV:
+    DASHBOARD_URL = DASHBOARD_URL_ENV
+elif _internal_host:
+    # Render provides hostport as "service-name:port"; use http
+    DASHBOARD_URL = f"http://{_internal_host}"
+else:
+    DASHBOARD_URL = "http://localhost:3000"
+
+# ARCHITECT FIX: Also check Redis for dynamic DASHBOARD_URL override (takes highest priority)
 if REDIS_URL:
     try:
-        r_temp = redis.from_url(REDIS_URL, socket_timeout=1, decode_responses=True)
+        r_temp = redis.from_url(REDIS_URL, socket_timeout=2, decode_responses=True)
         redis_url_override = r_temp.hget("alphamark:env", "DASHBOARD_URL")
         if redis_url_override:
             DASHBOARD_URL = redis_url_override
@@ -125,11 +134,27 @@ if REDIS_URL:
     except Exception as e:
         logger.warning(f"Failed to get DASHBOARD_URL from Redis: {e}")
 
-if not DASHBOARD_URL:
-    DASHBOARD_URL = f"http://{_internal_host}" if _internal_host else "http://localhost:3000"
+logger.info(f"[BOT] Dashboard URL: {DASHBOARD_URL}")
 ACTIVE_WALLETS = {}
 MAX_SLIPPAGE = float(os.getenv("MAX_SLIPPAGE", "0.005"))
 MIN_LIQUIDITY = int(os.getenv("MIN_LIQUIDITY", "1000"))
+
+def _write_heartbeat_to_redis(active_opps_count):
+    """Write heartbeat directly to Redis so dashboard can read it even when HTTP fails."""
+    if not REDIS_URL:
+        return
+    try:
+        import redis as redis_lib
+        r = redis_lib.from_url(REDIS_URL, socket_timeout=3, decode_responses=True)
+        r.hset('alphamark:heartbeat', mapping={
+            'activeOpps': str(active_opps_count),
+            'timestamp': datetime.now().isoformat(),
+            'dashboardUrl': DASHBOARD_URL,
+            'botAlive': 'true'
+        })
+        r.expire('alphamark:heartbeat', 120)  # 2-minute TTL — stale if bot dies
+    except Exception as e:
+        logger.debug(f"[BOT] Redis heartbeat write failed: {e}")
 
 def report_execution_to_dashboard(opportunity, success, profit=0, loss=0, tx_hash=None):
     def _send():
@@ -142,17 +167,32 @@ def report_execution_to_dashboard(opportunity, success, profit=0, loss=0, tx_has
                 "txHash": tx_hash,
                 "timestamp": datetime.now().isoformat()
             }
-            requests.post(f"{DASHBOARD_URL}/api/bot/update", json=payload, timeout=2)
+            requests.post(f"{DASHBOARD_URL}/api/bot/update", json=payload, timeout=3)
         except Exception as e:
-            logger.warning(f"Failed to report execution to dashboard: {e}")
+            logger.warning(f"[BOT] HTTP report to dashboard failed ({DASHBOARD_URL}): {e}")
+            # Fallback: write directly to Redis stats for dashboard to pick up
+            if REDIS_URL:
+                try:
+                    import redis as redis_lib
+                    r = redis_lib.from_url(REDIS_URL, socket_timeout=3, decode_responses=True)
+                    # Queue execution result for dashboard
+                    r.lpush('alphamark:pending_updates', json.dumps(payload))
+                    r.ltrim('alphamark:pending_updates', 0, 49)  # keep last 50
+                except Exception as re:
+                    logger.debug(f"[BOT] Redis fallback also failed: {re}")
     threading.Thread(target=_send, daemon=True).start()
 
 def report_heartbeat(active_opps_count):
     def _send():
         try:
             payload = {"type": "HEARTBEAT", "activeOpps": active_opps_count, "timestamp": datetime.now().isoformat()}
-            requests.post(f"{DASHBOARD_URL}/api/bot/update", json=payload, timeout=2)
-        except: pass
+            requests.post(f"{DASHBOARD_URL}/api/bot/update", json=payload, timeout=3)
+        except Exception:
+            # Silently fall back to Redis direct write
+            _write_heartbeat_to_redis(active_opps_count)
+        else:
+            # Also write to Redis for redundancy
+            _write_heartbeat_to_redis(active_opps_count)
     threading.Thread(target=_send, daemon=True).start()
 
 # --- OPTIMIZED DYNAMIC PROCESSES ---
