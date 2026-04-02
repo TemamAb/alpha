@@ -2,20 +2,30 @@
   "name": "alphamark-dashboard",
   "version": "1.0.0",
   "description": "Real-time monitoring dashboard for AlphaMark Arbitrage Bot",
-  "main": "server-dashboard.js",
+  "type": "module",
   "scripts": {
-    "start": "node server-dashboard.js",
-    "dev": "node server-dashboard.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite preview --host 0.0.0.0 --port $PORT",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "redis": "^4.7.0",
-    "ws": "^8.18.0",
-    "dotenv": "^16.4.5",
-    "cors": "^2.8.5",
-    "helmet": "^7.1.0",
-    "compression": "^1.7.4"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "wagmi": "^2.14.11",
+    "viem": "^2.21.58",
+    "@tanstack/react-query": "^5.62.16"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.5"
   },
   "engines": {
     "node": ">=18.0.0"

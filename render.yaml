@@ -6,7 +6,7 @@ services:
     dockerContext: .
     plan: starter
     autoDeploy: true
-    healthCheckPath: /api/health
+    healthCheckPath: /
     envVars:
       - key: PORT
         value: "3000"
@@ -45,7 +45,7 @@ services:
     plan: starter
     autoDeploy: true
     envVars:
-  - key: START_DELAY
+      - key: START_DELAY
         value: "30"
       - key: REDIS_PING_TIMEOUT
         value: "60"
@@ -110,16 +110,6 @@ services:
       - key: BLAST_RPC_URL
         sync: false
       - key: SEI_RPC_URL
-        sync: false
-      - key: MODE_RPC_URL
-        sync: false
-      - key: BLAST_RPC_URL
-        sync: false
-      - key: SEI_RPC_URL
-        sync: false
-      - key: MODE_RPC_URL
-        sync: false
-      - key: BLAST_RPC_URL
         sync: false
 
   - type: keyvalue

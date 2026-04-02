@@ -1,42 +1,27 @@
 {
   "name": "aave-flashloan-arb",
   "version": "1.0.0",
-  "description": "Enterprise-grade Aave V3 Arbitrage Flash Loan App (gasless Pimlico mode)",
-  "main": "index.js",
+  "description": "Enterprise-grade Aave V3 Arbitrage Flash Loan App",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy": "hardhat run scripts/deploy.ts --network polygonMumbai",
-    "bot": "ts-node scripts/arb-bot.ts",
-    "dev": "vite",
-    "build": "vite build"
+    "bot": "tsx scripts/arb-bot.ts",
+    "dev": "cd frontend && npm install && vite",
+    "build": "cd frontend && vite build"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "hardhat": "^2.22.12",
     "typescript": "~5.6.2",
     "@types/node": "~22.7.6",
-    "ts-node": "^10.9.2"
+    "tsx": "^4.19.1"
   },
   "dependencies": {
     "@aave/core-v3": "^1.19.3",
     "@openzeppelin/contracts": "^5.0.2",
     "ethers": "^6.13.4",
     "dotenv": "^16.4.5",
-    "axios": "^1.7.7",
-    "vite": "^5.4.8",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-"wagmi": "^2.12.9",
-    "permissionless": "^1.5.4",
-    "@pimlico/bundler": "^0.5.3",
-    "@pimlico/paymaster": "^0.5.3",
-    "@pimlico/sdk": "^0.9.3"
-    "viem": "^2.21.28",
-    "@tanstack/react-query": "^5.59.0",
-    "permissionless": "^1.5.4",
-    "@pimlico/sdk": "^0.9.3"
+    "axios": "^1.7.7"
   }
 }

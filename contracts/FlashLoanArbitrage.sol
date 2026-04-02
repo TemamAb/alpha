@@ -94,6 +94,11 @@ contract FlashLoanArbitrage is FlashLoanSimpleReceiverBase {
         return true;
     }
 
+    // Get profit balance (USDC)
+    function getProfitBalance() external view returns (uint256) {
+        return IERC20(USDC).balanceOf(address(this));
+    }
+
     // Withdraw profits
     function withdraw(address asset) external {
         require(msg.sender == owner, "Only owner");
