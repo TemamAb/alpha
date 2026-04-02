@@ -1,5 +1,6 @@
 # AlphaMark Monitoring Dashboard Dockerfile
-FROM node:18-alpine AS builder
+# Node 20 to satisfy chokidar/readdirp engine requirements
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +17,7 @@ COPY frontend/. .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
