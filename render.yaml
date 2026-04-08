@@ -13,13 +13,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: PAPER_TRADING_MODE
+        value: "true"
         sync: false
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: alpha-redis
-          property: connectionString
-      - key: REDIS_URL_EXTERNAL
         fromService:
           type: keyvalue
           name: alpha-redis
@@ -35,6 +31,8 @@ services:
       - key: PIMLICO_API_KEY
         sync: false
       - key: FLASHLOAN_CONTRACT_ADDRESS
+        sync: false
+      - key: PROFIT_VAULT_ADDRESS
         sync: false
 
   - type: worker
@@ -52,6 +50,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: PAPER_TRADING_MODE
+        value: "true"
         sync: false
       - key: REDIS_URL
         fromService:
@@ -72,6 +71,8 @@ services:
       - key: PIMLICO_API_KEY
         sync: false
       - key: FLASHLOAN_CONTRACT_ADDRESS
+        sync: false
+      - key: PROFIT_VAULT_ADDRESS
         sync: false
       - key: OPENAI_API_KEY
         sync: false
