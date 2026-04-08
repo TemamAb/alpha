@@ -30,9 +30,9 @@ ENV PAPER_TRADING_MODE=true
 RUN useradd -m -u 1000 botuser && chown -R botuser:botuser /app
 USER botuser
 
-# Health check
+# Health check using Python (more reliable than redis-cli, avoids shell expansion issues)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD sh -c "echo PING | redis-cli -u \$${REDIS_URL} ping || exit 1" || exit 1
+    CMD python -c "import redis, os; r = redis.from_url(os.environ.get('REDIS_URL', ''), socket_timeout=5); r.ping()" || exit 1
 
 # Run the bot - starts in PAPER TRADING MODE by default (safe)
 CMD ["python", "execution_bot/scripts/bot.py"]
